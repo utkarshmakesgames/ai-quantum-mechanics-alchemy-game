@@ -1,0 +1,123 @@
+name: Deploy All Versions to Pages
+
+on:
+  push:
+    branches:
+      - main
+      - pages-*
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: _main
+          fetch-depth: 1
+
+      - name: Discover pages-* branches and check them out
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # List all remote branches matching pages-*
+          BRANCHES=$(git -C _main ls-remote --heads origin 'refs/heads/pages-*' | awk -F'/' '{print $NF}')
+          echo "Found branches: $BRANCHES"
+          echo "$BRANCHES" > /tmp/page-branches.txt
+
+          for BRANCH in $BRANCHES; do
+            echo "Checking out $BRANCH..."
+            git clone --depth 1 --branch "$BRANCH" \
+              "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" \
+              "_branch_${BRANCH}" 2>/dev/null || echo "Warning: could not checkout $BRANCH"
+          done
+
+      - name: Build site
+        run: |
+          mkdir -p _site
+
+          # Copy main → /current/
+          mkdir -p _site/current
+          cp -r _main/*.html _main/*.js _main/*.css _main/data _main/assets _site/current/ 2>/dev/null || true
+
+          # Copy each pages-* branch → /<branch-name>/
+          if [ -f /tmp/page-branches.txt ]; then
+            while IFS= read -r BRANCH; do
+              [ -z "$BRANCH" ] && continue
+              DIR="_branch_${BRANCH}"
+              if [ -d "$DIR" ]; then
+                echo "Copying $BRANCH → _site/${BRANCH}/"
+                mkdir -p "_site/${BRANCH}"
+                # Copy all web files (skip .git, node_modules, etc.)
+                find "$DIR" -maxdepth 1 \( -name '*.html' -o -name '*.js' -o -name '*.css' \) -exec cp {} "_site/${BRANCH}/" \;
+                for SUB in data assets js css img; do
+                  [ -d "$DIR/$SUB" ] && cp -r "$DIR/$SUB" "_site/${BRANCH}/"
+                done
+              fi
+            done < /tmp/page-branches.txt
+          fi
+
+          # Generate landing page listing all versions
+          LINKS='<a href="current/" class="version"><div class="label">Main</div><div class="title">Current Version</div></a>'
+          if [ -f /tmp/page-branches.txt ]; then
+            while IFS= read -r BRANCH; do
+              [ -z "$BRANCH" ] && continue
+              [ -d "_site/${BRANCH}" ] || continue
+              DISPLAY_NAME=$(echo "$BRANCH" | sed 's/pages-//')
+              LINKS="${LINKS}<a href=\"${BRANCH}/\" class=\"version\"><div class=\"label\">${BRANCH}</div><div class=\"title\">${DISPLAY_NAME}</div></a>"
+            done < /tmp/page-branches.txt
+          fi
+
+          cat > _site/index.html << LANDING
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Quantum Forge — Versions</title>
+            <style>
+              * { margin: 0; padding: 0; box-sizing: border-box; }
+              body { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #0a0e27; color: #e8eaf6; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+              .container { text-align: center; max-width: 600px; padding: 40px; }
+              h1 { font-size: 2.5rem; margin-bottom: 8px; }
+              h1 span:first-child { color: #00e5ff; }
+              h1 span:last-child { color: #d500f9; }
+              .subtitle { color: #9fa8da; margin-bottom: 32px; }
+              .versions { display: flex; flex-direction: column; gap: 16px; }
+              .version { display: block; padding: 20px; border-radius: 12px; text-decoration: none; color: #e8eaf6; background: #161a3e; border: 2px solid #283593; transition: all 0.2s; }
+              .version:hover { transform: translateY(-2px); border-color: #00e5ff; box-shadow: 0 0 20px rgba(0,229,255,0.2); }
+              .label { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 2px; color: #00e5ff; margin-bottom: 4px; }
+              .title { font-size: 1.2rem; font-weight: 600; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <h1><span>Quantum</span> <span>Forge</span></h1>
+              <p class="subtitle">Pick a version to play</p>
+              <div class="versions">${LINKS}</div>
+            </div>
+          </body>
+          </html>
+          LANDING
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
