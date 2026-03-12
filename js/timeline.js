@@ -318,12 +318,6 @@ const Timeline = (function() {
         <div class="feedback-icon">✓</div>
         <div class="feedback-text">${q.explanations.correct}</div>
       `;
-
-      // Grant discovery if this question has an element
-      if (q.element) {
-        triggerDiscovery(q.element, null, false);
-      }
-
       App.addScore(100);
     } else {
       Audio.play('wrong');
@@ -338,6 +332,11 @@ const Timeline = (function() {
       App.addScore(25); // partial credit for trying
     }
 
+    // Grant discovery regardless of correct/wrong — learning happens either way
+    if (q.element) {
+      triggerDiscovery(q.element, null, false);
+    }
+
     feedbackDiv.style.display = 'block';
 
     // Add "Continue" button
@@ -349,6 +348,9 @@ const Timeline = (function() {
       renderCurrentChoice();
     });
     feedbackDiv.appendChild(continueBtn);
+
+    // Auto-scroll to show feedback
+    feedbackDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
   // === DISCOVERIES (choice mode) ===
@@ -444,13 +446,25 @@ const Timeline = (function() {
       nextBtn.disabled = false;
     }
 
+    // Check if all eras are complete
+    const allComplete = ERAS.every((_, i) => appState.storyProgress.completedEras.includes(i));
+
     // Show completion banner
     const banner = document.getElementById('era-complete-banner');
     if (banner) {
-      banner.style.display = 'flex';
-      banner.querySelector('.era-complete-text').textContent =
-        `${currentEra.name} Complete! +${discoveredInEra.length * 50} points`;
-      setTimeout(() => banner.style.display = 'none', 4000);
+      if (allComplete) {
+        banner.style.display = 'flex';
+        banner.querySelector('.era-complete-text').innerHTML =
+          `🎉 Journey Complete! You've traversed the entire history of the universe — from quarks to quantum computers. ` +
+          `Score: ${appState.storyProgress.totalScore} • ` +
+          `<span style="cursor:pointer;text-decoration:underline" onclick="document.querySelector('.btn-back-title').click()">Try Sandbox Mode →</span>`;
+        // Don't auto-hide the final banner
+      } else {
+        banner.style.display = 'flex';
+        banner.querySelector('.era-complete-text').textContent =
+          `${currentEra.name} Complete! +${discoveredInEra.length * 50} points`;
+        setTimeout(() => banner.style.display = 'none', 4000);
+      }
     }
   }
 
@@ -520,14 +534,19 @@ const Timeline = (function() {
   }
 
   function formatValue(value, unit) {
-    if (value >= 1e12) return (value / 1e12).toFixed(1) + ' T' + (unit || '');
-    if (value >= 1e9) return (value / 1e9).toFixed(1) + ' G' + (unit || '');
-    if (value >= 1e6) return (value / 1e6).toFixed(1) + ' M' + (unit || '');
-    if (value >= 1e3) return (value / 1e3).toFixed(1) + ' k' + (unit || '');
-    if (value >= 1) return value.toFixed(1) + ' ' + (unit || '');
-    if (value >= 1e-3) return (value * 1e3).toFixed(1) + ' m' + (unit || '');
-    if (value >= 1e-6) return (value * 1e6).toFixed(1) + ' μ' + (unit || '');
-    return value.toExponential(1) + ' ' + (unit || '');
+    const u = unit || '';
+    if (value >= 1e24) return (value / 1e24).toFixed(1) + ' Y' + u;
+    if (value >= 1e21) return (value / 1e21).toFixed(1) + ' Z' + u;
+    if (value >= 1e18) return (value / 1e18).toFixed(1) + ' E' + u;
+    if (value >= 1e15) return (value / 1e15).toFixed(1) + ' P' + u;
+    if (value >= 1e12) return (value / 1e12).toFixed(1) + ' T' + u;
+    if (value >= 1e9) return (value / 1e9).toFixed(1) + ' G' + u;
+    if (value >= 1e6) return (value / 1e6).toFixed(1) + ' M' + u;
+    if (value >= 1e3) return (value / 1e3).toFixed(1) + ' k' + u;
+    if (value >= 1) return value.toFixed(1) + ' ' + u;
+    if (value >= 1e-3) return (value * 1e3).toFixed(1) + ' m' + u;
+    if (value >= 1e-6) return (value * 1e6).toFixed(1) + ' μ' + u;
+    return value.toExponential(1) + ' ' + u;
   }
 
   return { init, stop, loadEra };

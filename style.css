@@ -618,7 +618,8 @@ body {
 }
 .sandbox-result.success { background: rgba(105, 240, 174, 0.1); border: 1px solid rgba(105, 240, 174, 0.3); color: var(--accent-green); }
 .sandbox-result.known { background: rgba(0, 229, 255, 0.1); border: 1px solid rgba(0, 229, 255, 0.3); color: var(--accent-cyan); }
-.sandbox-result.failure { background: rgba(255, 82, 82, 0.08); border: 1px solid rgba(255, 82, 82, 0.3); color: var(--accent-red); }
+.sandbox-result.failure { background: rgba(255, 82, 82, 0.08); border: 1px solid rgba(255, 82, 82, 0.3); color: var(--accent-red); animation: shake 0.4s ease; }
+@keyframes shake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-8px)} 40%{transform:translateX(8px)} 60%{transform:translateX(-4px)} 80%{transform:translateX(4px)} }
 
 /* Element grid */
 .sandbox-elements {

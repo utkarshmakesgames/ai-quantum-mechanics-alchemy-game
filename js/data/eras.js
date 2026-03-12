@@ -257,7 +257,8 @@ const ERAS = [
             1: 'Some photons are absorbed into atoms, but most decouple and stream freely through the newly transparent universe.',
             3: 'Photons and neutrinos are fundamentally different particles. The photons simply stop interacting with matter.'
           }
-        }
+        },
+        element: 'photon'
       },
       {
         text: 'What is the first and most abundant atom to form?',
@@ -270,8 +271,7 @@ const ERAS = [
             2: 'Lithium is incredibly rare from Big Bang nucleosynthesis — only trace amounts formed.',
             3: 'Carbon doesn\'t form until stars ignite billions of years later. Only H, He, and trace Li exist at this point.'
           }
-        },
-        element: 'hydrogen'
+        }
       }
     ],
     background: { hue: 30, saturation: 40 }
