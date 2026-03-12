@@ -643,6 +643,7 @@
     threeSlotMode = enable;
     const slot3 = document.getElementById('slot-3');
     const plus3 = document.getElementById('forge-plus-3');
+    const toggleBtn = document.getElementById('btn-toggle-slots');
     if (!slot3 || !plus3) return;
 
     if (enable) {
@@ -650,12 +651,14 @@
       slot3.style.display = '';
       plus3.classList.add('slot3-enter');
       slot3.classList.add('slot3-enter');
+      if (toggleBtn) toggleBtn.textContent = '2-Slot';
     } else {
       plus3.style.display = 'none';
       slot3.style.display = 'none';
       plus3.classList.remove('slot3-enter');
       slot3.classList.remove('slot3-enter');
       slot3Element = null;
+      if (toggleBtn) toggleBtn.textContent = '3-Slot';
     }
   }
 
