@@ -444,10 +444,15 @@ for (const recipe of RECIPES) {
     RECIPES_BY_OUTPUT[out].push(recipe.inputs);
   }
 
-  // Track by input
+  // Track by input — remove only one instance of the input element
+  const seenInputs = new Set();
   for (const input of recipe.inputs) {
+    if (seenInputs.has(input)) continue; // avoid duplicate entries for same input
+    seenInputs.add(input);
     if (!RECIPES_BY_INPUT[input]) RECIPES_BY_INPUT[input] = [];
-    const partners = recipe.inputs.filter(i => i !== input);
+    // Remove only the first occurrence of this input from the list
+    const partners = [...recipe.inputs];
+    partners.splice(partners.indexOf(input), 1);
     RECIPES_BY_INPUT[input].push({ partners, result: recipe.output });
   }
 }

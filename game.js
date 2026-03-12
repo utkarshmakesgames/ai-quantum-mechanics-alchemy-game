@@ -457,7 +457,9 @@
 
   function renderElementGrid() {
     const grid = document.getElementById('element-grid');
-    const search = document.getElementById('element-search').value.toLowerCase();
+    if (!grid) return;
+    const searchEl = document.getElementById('element-search');
+    const search = searchEl ? searchEl.value.toLowerCase() : '';
 
     grid.innerHTML = '';
 
@@ -492,7 +494,9 @@
         for (const h of knownCombos) {
           // Show the first partner as the clickable card
           const primaryPartner = h.partners[0];
+          if (!primaryPartner) continue;
           const card = createElementCard(primaryPartner, handleElementClick);
+          if (!card) continue;
           if (primaryPartner === slot1Element || primaryPartner === slot2Element || primaryPartner === slot3Element) card.classList.add('selected');
           const resultIds = resultToArray(h.result);
           const firstResultEl = ELEMENTS[resultIds[0]];
