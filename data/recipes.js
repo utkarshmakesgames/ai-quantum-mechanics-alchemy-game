@@ -1,6 +1,7 @@
-// Quantum Forge v2.1 — Combination Recipes (Physics-Corrected)
-// Each recipe: { inputs: [id, id, ...], output: id }
+// Quantum Forge v2.2 — Combination Recipes (Physics-Corrected)
+// Each recipe: { inputs: [id, id, ...], output: id | [id, id, ...] }
 // Supports 2-input and 3-input recipes.
+// Multi-output: output can be an array when a reaction produces multiple products.
 //
 // CONSUMPTION RULES (handled in game.js based on element properties):
 // - Fundamental particles (starters): NEVER consumed — infinite supply
@@ -25,9 +26,8 @@ const RECIPES = [
   // Hydrogen: simplest atom
   { inputs: ['proton', 'electron'], output: 'hydrogen' },
 
-  // Positron: pair production (photon + photon → e⁺ + e⁻, we give positron)
-  { inputs: ['photon', 'photon'], output: 'positron' },
-  { inputs: ['energy', 'electron'], output: 'positron' },
+  // Pair production: γγ → e⁺e⁻ (both products granted)
+  { inputs: ['photon', 'photon'], output: ['electron', 'positron'] },
 
   // Antiproton
   { inputs: ['proton', 'energy'], output: 'antiproton' },
@@ -65,17 +65,17 @@ const RECIPES = [
   { inputs: ['deuteron', 'electron'], output: 'deuterium' },
   { inputs: ['hydrogen', 'neutron'], output: 'deuterium' },
 
-  // Annihilation
-  { inputs: ['electron', 'positron'], output: 'annihilation' },
-  { inputs: ['proton', 'antiproton'], output: 'annihilation' },
+  // Annihilation: e⁺e⁻ → 2γ (produces photons + the concept)
+  { inputs: ['electron', 'positron'], output: ['annihilation', 'photon'] },
+  { inputs: ['proton', 'antiproton'], output: ['annihilation', 'photon'] },
 
   // Antimatter
   { inputs: ['positron', 'antiproton'], output: 'antimatter' },
   { inputs: ['annihilation', 'energy'], output: 'antimatter' },
 
-  // Beta decay (neutron → proton + electron + antineutrino, mediated by weak force)
-  { inputs: ['neutron', 'weak_force'], output: 'beta_decay' },
-  { inputs: ['neutron', 'neutrino'], output: 'beta_decay' },
+  // Beta decay: n → p + e⁻ + ν̄ₑ (mediated by weak force)
+  { inputs: ['neutron', 'weak_force'], output: ['beta_decay', 'proton', 'electron'] },
+  { inputs: ['neutron', 'neutrino'], output: ['beta_decay', 'proton', 'electron'] },
 
   // Strong Force
   { inputs: ['gluon', 'gluon'], output: 'strong_force' },
@@ -135,9 +135,9 @@ const RECIPES = [
   { inputs: ['helium', 'energy'], output: 'nuclear_fusion' },
   { inputs: ['deuterium', 'energy'], output: 'nuclear_fusion' },
 
-  // Nuclear Fission (uranium + neutron is the correct reaction)
-  { inputs: ['uranium', 'neutron'], output: 'nuclear_fission' },
-  { inputs: ['nucleus', 'neutron'], output: 'nuclear_fission' },
+  // Nuclear Fission: U + n → fission products + neutrons (chain reaction)
+  { inputs: ['uranium', 'neutron'], output: ['nuclear_fission', 'neutron', 'energy'] },
+  { inputs: ['nucleus', 'neutron'], output: ['nuclear_fission', 'neutron'] },
 
   // Radioactivity
   { inputs: ['nucleus', 'energy'], output: 'radioactivity' },
@@ -430,19 +430,23 @@ const RECIPES_BY_INPUT = {};
 
 for (const recipe of RECIPES) {
   const key = [...recipe.inputs].sort().join('|');
+  // Normalize output to array for consistent handling
+  const outputs = Array.isArray(recipe.output) ? recipe.output : [recipe.output];
+
   // First recipe wins if duplicate keys
   if (!RECIPE_MAP.has(key)) {
     RECIPE_MAP.set(key, recipe.output);
   }
 
-  // Track by output
-  if (!RECIPES_BY_OUTPUT[recipe.output]) RECIPES_BY_OUTPUT[recipe.output] = [];
-  RECIPES_BY_OUTPUT[recipe.output].push(recipe.inputs);
+  // Track by output — index each product
+  for (const out of outputs) {
+    if (!RECIPES_BY_OUTPUT[out]) RECIPES_BY_OUTPUT[out] = [];
+    RECIPES_BY_OUTPUT[out].push(recipe.inputs);
+  }
 
   // Track by input
   for (const input of recipe.inputs) {
     if (!RECIPES_BY_INPUT[input]) RECIPES_BY_INPUT[input] = [];
-    // For hints, list all other inputs as partners
     const partners = recipe.inputs.filter(i => i !== input);
     RECIPES_BY_INPUT[input].push({ partners, result: recipe.output });
   }
@@ -450,7 +454,8 @@ for (const recipe of RECIPES) {
 
 /**
  * Try to combine elements. Accepts an array of 2 or 3 element IDs.
- * Returns the result element ID or null.
+ * Returns the result: a single element ID (string), an array of IDs
+ * (for multi-output reactions like pair production), or null.
  */
 function tryCombine(inputs) {
   if (!Array.isArray(inputs)) inputs = [...arguments];

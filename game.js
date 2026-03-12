@@ -64,6 +64,22 @@
   // HELPERS
   // ============================================================
 
+  // Multi-output helpers: result can be string or array
+  function resultToArray(result) {
+    return Array.isArray(result) ? result : [result];
+  }
+  function allResultsDiscovered(result, discovered) {
+    discovered = discovered || state.discovered;
+    return resultToArray(result).every(r => discovered.includes(r));
+  }
+  function anyResultUndiscovered(result, discovered) {
+    discovered = discovered || state.discovered;
+    return resultToArray(result).some(r => !discovered.includes(r));
+  }
+  function resultKey(result) {
+    return Array.isArray(result) ? result.join('|') : result;
+  }
+
   // Is an element "fundamental" (infinite supply)?
   function isFundamental(elementId) {
     return STARTING_ELEMENTS.includes(elementId);
@@ -362,9 +378,10 @@
     const seen = new Set();
     for (const h of hints) {
       const partnersDiscovered = h.partners.every(p => state.discovered.includes(p));
-      if (partnersDiscovered && !state.discovered.includes(h.result) && !seen.has(h.result)) {
+      const rKey = resultKey(h.result);
+      if (partnersDiscovered && anyResultUndiscovered(h.result) && !seen.has(rKey)) {
         count++;
-        seen.add(h.result);
+        seen.add(rKey);
       }
     }
     return count;
@@ -452,9 +469,10 @@
       const knownCombos = [];
       for (const h of hints) {
         if (!h.partners.every(p => state.discovered.includes(p))) continue;
-        if (!state.discovered.includes(h.result)) continue;
-        if (seenResults.has(h.result)) continue;
-        seenResults.add(h.result);
+        if (!allResultsDiscovered(h.result)) continue;
+        const rKey = resultKey(h.result);
+        if (seenResults.has(rKey)) continue;
+        seenResults.add(rKey);
         knownCombos.push({ partners: h.partners, result: h.result });
       }
 
@@ -476,13 +494,15 @@
           const primaryPartner = h.partners[0];
           const card = createElementCard(primaryPartner, handleElementClick);
           if (primaryPartner === slot1Element || primaryPartner === slot2Element || primaryPartner === slot3Element) card.classList.add('selected');
-          const resultEl = ELEMENTS[h.result];
-          if (resultEl) {
+          const resultIds = resultToArray(h.result);
+          const firstResultEl = ELEMENTS[resultIds[0]];
+          if (firstResultEl) {
             const tag = document.createElement('span');
             tag.className = 'combo-result-tag';
             const partnerNames = h.partners.map(p => ELEMENTS[p] ? ELEMENTS[p].name : p).join(' + ');
-            tag.textContent = '+ ' + partnerNames + ' \u2192 ' + resultEl.name;
-            tag.style.color = resultEl.color;
+            const resultNames = resultIds.map(r => ELEMENTS[r] ? ELEMENTS[r].name : r).join(' + ');
+            tag.textContent = '+ ' + partnerNames + ' \u2192 ' + resultNames;
+            tag.style.color = firstResultEl.color;
             card.appendChild(tag);
           }
           card.addEventListener('contextmenu', (e) => { e.preventDefault(); togglePin(primaryPartner); });
@@ -710,12 +730,20 @@
     }
 
     preview.style.display = 'flex';
-    const result = tryCombine(inputs);
+    const rawResult = tryCombine(inputs);
+    // For preview, show first output (primary product)
+    const result = Array.isArray(rawResult) ? rawResult[0] : rawResult;
 
     if (result && state.discovered.includes(result)) {
       const el = ELEMENTS[result];
-      nameEl.textContent = el.name;
-      nameEl.setAttribute('data-text', el.name);
+      const results = Array.isArray(rawResult) ? rawResult : [rawResult];
+      const allKnown = results.every(r => state.discovered.includes(r));
+      if (allKnown && results.length > 1) {
+        nameEl.textContent = results.map(r => ELEMENTS[r].name).join(' + ');
+      } else {
+        nameEl.textContent = el.name;
+      }
+      nameEl.setAttribute('data-text', nameEl.textContent);
       nameEl.className = 'forge-preview-name known';
       nameEl.style.color = el.color;
     } else {
@@ -773,8 +801,9 @@
       bar.style.display = 'none';
       return;
     }
-    const result = tryCombine(inputs);
-    if (!result || !state.discovered.includes(result)) {
+    const rawResult = tryCombine(inputs);
+    const results = Array.isArray(rawResult) ? rawResult : rawResult ? [rawResult] : null;
+    if (!results || !results.every(r => state.discovered.includes(r))) {
       bar.style.display = 'none';
       return;
     }
@@ -843,8 +872,9 @@
   function handleBatchCraft() {
     const inputs = getForgeInputs();
     if (!inputs) return;
-    const result = tryCombine(inputs);
-    if (!result || !state.discovered.includes(result)) return;
+    const rawResult = tryCombine(inputs);
+    const results = Array.isArray(rawResult) ? rawResult : rawResult ? [rawResult] : null;
+    if (!results || !results.every(r => state.discovered.includes(r))) return;
 
     const maxCrafts = getMaxBatchCrafts(inputs[0], inputs[1], inputs[2]);
     if (maxCrafts < 1) {
@@ -862,13 +892,13 @@
       removeStock(id, count * n);
     }
 
-    // Each craft updates mastery
+    // Each craft updates mastery for all outputs
     for (let i = 0; i < count; i++) {
-      updateMastery(result);
+      for (const r of results) updateMastery(r);
     }
 
-    // Add crafted items (1 per craft)
-    addStock(result, count);
+    // Add crafted items (1 per craft per output)
+    for (const r of results) addStock(r, count);
 
     // Stats
     state.stats.totalCombinations += count;
@@ -877,7 +907,8 @@
     updateStreak(true);
 
     // QE — calculate manually for batch (awardQE has side effects)
-    const el = ELEMENTS[result];
+    const primaryResult = results[0];
+    const el = ELEMENTS[primaryResult];
     const base = 2;
     const eraBonus = (el.era - 1) * 5;
     const mult = getStreakMultiplier(state.stats.currentStreak);
@@ -889,10 +920,15 @@
     updateStability(5);
     playCombineAnimation('known');
 
+    const outputNames = results.map(r => {
+      const e = ELEMENTS[r];
+      return `<strong style="color:${e.color}">${e.name}</strong>`;
+    }).join(' + ');
+
     const resultEl = document.getElementById('forge-result');
     resultEl.style.display = 'block';
     resultEl.className = 'forge-result already';
-    resultEl.innerHTML = `<div class="result-text">Batch crafted <strong style="color:${el.color}">${el.name} x${count}</strong> <span class="qe-earned-inline">+${qeEarned} QE</span></div>`;
+    resultEl.innerHTML = `<div class="result-text">Batch crafted ${outputNames} x${count} <span class="qe-earned-inline">+${qeEarned} QE</span></div>`;
 
     // Clear slots
     slot1Element = null;
@@ -1045,13 +1081,16 @@
     if (!state.triedPairs) state.triedPairs = [];
     if (!state.triedPairs.includes(pairKey)) state.triedPairs.push(pairKey);
 
-    const result = tryCombine(inputs);
+    const rawResult = tryCombine(inputs);
     const resultEl = document.getElementById('forge-result');
     resultEl.style.display = 'block';
 
-    if (result) {
-      const el = ELEMENTS[result];
-      if (!el) {
+    if (rawResult) {
+      // Normalize to array for multi-output support
+      const results = Array.isArray(rawResult) ? rawResult : [rawResult];
+
+      // Validate all outputs exist
+      if (results.some(r => !ELEMENTS[r])) {
         onCombineFail(resultEl, inputs[0], inputs[1], alreadyTried);
         return;
       }
@@ -1061,78 +1100,84 @@
         removeStock(id, count);
       }
 
-      const isNew = !state.discovered.includes(result);
+      // Process each output
+      let anyNew = false;
+      let totalQE = 0;
+      const newDiscoveries = [];
+      const allOutputNames = [];
 
-      // Yield scaling: first discovery = 1, subsequent crafts scale with mastery
-      const yield_ = getYield(result, isNew);
+      for (const result of results) {
+        const el = ELEMENTS[result];
+        const isNew = !state.discovered.includes(result);
+        const yield_ = getYield(result, isNew);
 
-      // Add output to inventory
-      addStock(result, yield_);
+        addStock(result, yield_);
+        updateMastery(result);
 
-      // Update mastery
-      updateMastery(result);
+        const yieldText = yield_ > 1 ? ` x${yield_}` : '';
+        allOutputNames.push(`<strong style="color:${el.color}">${el.name}${yieldText}</strong>`);
 
-      const yieldText = yield_ > 1 ? ` x${yield_}` : '';
+        if (isNew) {
+          anyNew = true;
+          state.discovered.push(result);
+          newDiscoveries.push(result);
 
-      if (isNew) {
-        // New discovery!
-        state.discovered.push(result);
+          recentDiscoveries.unshift(result);
+          if (recentDiscoveries.length > 8) recentDiscoveries.pop();
+        }
+      }
+
+      if (anyNew) {
         state.stats.successfulCombinations++;
-        state.stats.sessionDiscoveries++;
+        state.stats.sessionDiscoveries += newDiscoveries.length;
         state.stats.consecutiveFails = 0;
 
         updateCurrentEra();
-
-        // Streak
         updateStreak(true);
 
-        // QE
-        const qeEarned = awardQE(result, true);
+        // Award QE for first new discovery (primary product)
+        totalQE = awardQE(newDiscoveries[0], true);
+        // Bonus QE for additional new discoveries
+        for (let i = 1; i < newDiscoveries.length; i++) {
+          totalQE += awardQE(newDiscoveries[i], true);
+        }
 
-        // Stability boost
         updateStability(5);
-
-        // Animation
         playCombineAnimation('discovery');
 
-        // Add to recent
-        recentDiscoveries.unshift(result);
-        if (recentDiscoveries.length > 8) recentDiscoveries.pop();
-
         resultEl.className = 'forge-result success';
-        resultEl.innerHTML = `<div class="result-text">New discovery: <strong style="color:${el.color}">${el.name}</strong> <span class="qe-earned-inline">+${qeEarned} QE</span></div>`;
+        if (results.length > 1) {
+          resultEl.innerHTML = `<div class="result-text">New discovery: ${allOutputNames.join(' + ')} <span class="qe-earned-inline">+${totalQE} QE</span></div>`;
+        } else {
+          resultEl.innerHTML = `<div class="result-text">New discovery: ${allOutputNames[0]} <span class="qe-earned-inline">+${totalQE} QE</span></div>`;
+        }
 
-        // Show discovery modal
-        showDiscoveryModal(result, qeEarned);
+        // Show discovery modal for the primary new discovery
+        showDiscoveryModal(newDiscoveries[0], totalQE);
 
         // Tutorial: advance after proton crafted
         if (state.tutorialStep === 6) {
-          advanceTutorial(7);  // proton crafted → silent wait for modal
+          advanceTutorial(7);
         }
 
-        // Check achievements
         checkAchievements();
-
         saveGame();
       } else {
-        // Already discovered — still a successful craft
+        // All outputs already discovered — still a successful craft
         state.stats.successfulCombinations++;
         state.stats.consecutiveFails = 0;
 
-        // Streak
         updateStreak(true);
-
-        // QE (less for re-craft)
-        const qeEarned = awardQE(result, false);
-
-        // Stability boost
+        totalQE = awardQE(results[0], false);
         updateStability(5);
-
-        // Animation
         playCombineAnimation('known');
 
         resultEl.className = 'forge-result already';
-        resultEl.innerHTML = `<div class="result-text">Created <strong style="color:${el.color}">${el.name}${yieldText}</strong> <span class="qe-earned-inline">+${qeEarned} QE</span></div>`;
+        if (results.length > 1) {
+          resultEl.innerHTML = `<div class="result-text">Created ${allOutputNames.join(' + ')} <span class="qe-earned-inline">+${totalQE} QE</span></div>`;
+        } else {
+          resultEl.innerHTML = `<div class="result-text">Created ${allOutputNames[0]} <span class="qe-earned-inline">+${totalQE} QE</span></div>`;
+        }
       }
     } else {
       onCombineFail(resultEl, inputs[0], inputs[1], alreadyTried);
@@ -1558,7 +1603,7 @@
     const el1 = ELEMENTS[id1], el2 = ELEMENTS[id2];
 
     for (const h of hints1) {
-      if (h.partners.every(p => state.discovered.includes(p)) && !state.discovered.includes(h.result)) {
+      if (h.partners.every(p => state.discovered.includes(p)) && anyResultUndiscovered(h.result)) {
         const firstPartner = ELEMENTS[h.partners[0]];
         if (firstPartner) {
           return `Close! <strong>${el1.name}</strong> does react with something \u2014 try a <em>${firstPartner.role || 'different'}</em> type particle.`;
@@ -1566,7 +1611,7 @@
       }
     }
     for (const h of hints2) {
-      if (h.partners.every(p => state.discovered.includes(p)) && !state.discovered.includes(h.result)) {
+      if (h.partners.every(p => state.discovered.includes(p)) && anyResultUndiscovered(h.result)) {
         const firstPartner = ELEMENTS[h.partners[0]];
         if (firstPartner) {
           return `Close! <strong>${el2.name}</strong> does react with something \u2014 try a <em>${firstPartner.role || 'different'}</em> type particle.`;
@@ -1599,10 +1644,10 @@
     if (Math.abs(el1.era - el2.era) > 2) return 'wrong-era';
 
     const hasUndiscoveredRecipe1 = hints1.some(h =>
-      !state.discovered.includes(h.result) && h.partners.every(p => state.discovered.includes(p))
+      anyResultUndiscovered(h.result) && h.partners.every(p => state.discovered.includes(p))
     );
     const hasUndiscoveredRecipe2 = hints2.some(h =>
-      !state.discovered.includes(h.result) && h.partners.every(p => state.discovered.includes(p))
+      anyResultUndiscovered(h.result) && h.partners.every(p => state.discovered.includes(p))
     );
     if (hasUndiscoveredRecipe1 || hasUndiscoveredRecipe2) return 'needs-intermediate';
 
@@ -1720,7 +1765,7 @@
   function getNextCombosFor(elementId) {
     const hints = RECIPES_BY_INPUT[elementId] || [];
     return hints.filter(h =>
-      h.partners.every(p => state.discovered.includes(p)) && !state.discovered.includes(h.result)
+      h.partners.every(p => state.discovered.includes(p)) && anyResultUndiscovered(h.result)
     );
   }
 
@@ -2222,25 +2267,40 @@
     if (!challengeSlot1 || !challengeSlot2) return;
 
     challengeMoves++;
-    const result = tryCombine(challengeSlot1, challengeSlot2);
+    const rawResult = tryCombine(challengeSlot1, challengeSlot2);
     const resultEl = document.getElementById('challenge-forge-result');
     resultEl.style.display = 'block';
 
-    if (result && ELEMENTS[result]) {
-      const el = ELEMENTS[result];
-      const isNew = !challengeDiscovered.includes(result);
-      if (isNew) {
-        challengeDiscovered.push(result);
-        if (!state.discovered.includes(result)) {
-          state.discovered.push(result);
-          updateCurrentEra();
-          saveGame();
-        }
-        resultEl.className = 'forge-result success';
-        resultEl.innerHTML = `<div class="result-text">Discovered: <strong style="color:${el.color}">${el.name}</strong></div>`;
+    if (rawResult) {
+      const results = Array.isArray(rawResult) ? rawResult : [rawResult];
+      if (results.some(r => !ELEMENTS[r])) {
+        resultEl.className = 'forge-result failure';
+        resultEl.innerHTML = '<div class="result-text">No reaction.</div>';
       } else {
-        resultEl.className = 'forge-result already';
-        resultEl.innerHTML = `<div class="result-text">Created <strong style="color:${el.color}">${el.name}</strong> (already known)</div>`;
+        let anyNew = false;
+        const names = [];
+        for (const result of results) {
+          const el = ELEMENTS[result];
+          const isNew = !challengeDiscovered.includes(result);
+          if (isNew) {
+            anyNew = true;
+            challengeDiscovered.push(result);
+            if (!state.discovered.includes(result)) {
+              state.discovered.push(result);
+              updateCurrentEra();
+            }
+          }
+          names.push(`<strong style="color:${el.color}">${el.name}</strong>`);
+        }
+        if (anyNew) saveGame();
+        const label = names.join(' + ');
+        if (anyNew) {
+          resultEl.className = 'forge-result success';
+          resultEl.innerHTML = `<div class="result-text">Discovered: ${label}</div>`;
+        } else {
+          resultEl.className = 'forge-result already';
+          resultEl.innerHTML = `<div class="result-text">Created ${label} (already known)</div>`;
+        }
       }
     } else {
       resultEl.className = 'forge-result failure';
