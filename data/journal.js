@@ -47,27 +47,6 @@ const JOURNAL = {
     history: 'Predicted by Wolfgang Pauli in 1930 to explain missing energy in beta decay. "I have done a terrible thing," he said. "I have postulated a particle that cannot be detected." They were detected in 1956.',
     funFact: 'About 65 billion neutrinos from the Sun pass through every square centimeter of your body every second. Almost none of them interact with you at all.'
   },
-  diquark_uu: {
-    what: 'A diquark is a pair of quarks bound together inside a baryon. The uu diquark contains two up quarks in a correlated state, forming two-thirds of a proton.',
-    whyItMatters: 'Diquarks are the intermediate step in building protons and other baryons. Understanding quark pairing helps explain why protons are so stable.',
-    weirdPart: 'Diquarks are not free particles — they exist only inside baryons. But the correlation between two quarks inside a proton is real and measurable in high-energy experiments.',
-    history: 'The diquark concept was introduced by Ida and Oyama in 1966 and developed by Lichtenberg in 1967 to explain baryon structure.',
-    funFact: 'Two up quarks in a diquark carry a combined charge of +4/3 — they need a down quark (-1/3) to reach the proton\'s +1 charge.'
-  },
-  diquark_dd: {
-    what: 'The dd diquark is a pair of two down quarks bound by the color force. It forms the first step in building a neutron (ddu).',
-    whyItMatters: 'Just as the uu diquark is the backbone of the proton, the dd diquark is the backbone of the neutron. Different quark combinations make different particles.',
-    weirdPart: 'The dd diquark has a charge of -2/3. Adding an up quark (+2/3) gives exactly zero — which is why neutrons are electrically neutral!',
-    history: 'Diquark models gained prominence in the 1990s when lattice QCD calculations showed clear quark-pairing correlations inside nucleons.',
-    funFact: 'Neutrons are slightly heavier than protons (by 0.14%) because the down quark is heavier than the up quark. This tiny difference determines the structure of the entire universe.'
-  },
-  diquark_ud: {
-    what: 'The ud diquark is an up-down quark pair — the most common type of diquark correlation found inside nucleons.',
-    whyItMatters: 'Mixed-flavor diquarks are found in both protons and neutrons, making them the most versatile building block of nuclear matter.',
-    weirdPart: 'The ud diquark can exist in a spin-0 "good" diquark state, which is more tightly bound than same-flavor pairs — one reason nucleons are so stable.',
-    history: 'The "good diquark" concept by Jaffe and Wilczek (2003) helped explain exotic particles like pentaquarks.',
-    funFact: 'The ud diquark has a charge of +1/3. It can combine with either an up or down quark to make a proton or neutron respectively.'
-  },
   quark_antiquark: {
     what: 'A quark-antiquark pair is a quark bound to its antimatter counterpart. These pairs are the building blocks of mesons — particles like pions and kaons.',
     whyItMatters: 'Mesons mediate the residual strong force between protons and neutrons, holding atomic nuclei together.',
@@ -257,6 +236,13 @@ const JOURNAL = {
     weirdPart: 'Iron has the highest binding energy per nucleon — meaning fusing lighter elements into iron releases energy, but fusing iron into heavier elements requires energy. It\'s the turning point of nuclear physics.',
     history: 'Used by humans since at least 3200 BCE. Understanding WHY iron is so stable required nuclear physics in the 20th century.',
     funFact: 'Earth\'s core is mostly iron, and its motion generates Earth\'s magnetic field. Without iron, we\'d have no compass, no magnetic field, and no protection from solar wind.'
+  },
+  uranium: {
+    what: 'Uranium has 92 protons and is the heaviest naturally occurring element. Its nucleus is so large that it is barely stable — some isotopes (U-235) can undergo nuclear fission when struck by a neutron.',
+    whyItMatters: 'Uranium fission powers nuclear reactors and was the fuel for the first atomic bombs. It releases millions of times more energy per atom than any chemical reaction.',
+    weirdPart: 'A single neutron hitting a U-235 nucleus splits it into two smaller nuclei, releases 2-3 more neutrons, and those neutrons can split more uranium — a chain reaction that can power a city or level one.',
+    history: 'Discovered by Martin Klaproth in 1789 and named after the planet Uranus. Nuclear fission was discovered in 1938 by Hahn and Strassmann, with Lise Meitner providing the theoretical explanation.',
+    funFact: 'Natural uranium is mostly U-238 (99.3%) with only 0.7% fissile U-235. Enrichment to ~3-5% U-235 is needed for reactor fuel; weapons-grade requires ~90%.'
   },
   nucleus: {
     what: 'The atomic nucleus is the dense core of an atom, made of protons and neutrons held together by the strong nuclear force (via residual gluon effects).',

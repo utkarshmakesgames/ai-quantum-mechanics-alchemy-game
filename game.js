@@ -42,6 +42,8 @@
   let selectedSlot = 1;
   let slot1Element = null;
   let slot2Element = null;
+  let slot3Element = null;
+  let threeSlotMode = false;
   let recentDiscoveries = [];
   let activeScreen = 'title';
   let streakTimer = null;         // 60s inactivity timeout
@@ -175,9 +177,31 @@
             state.tutorialStep = TUTORIAL_COMPLETE + 1;
           }
         }
-        // Migrate from old 7-step tutorial to new 12-step
-        if (state.tutorialStep === 7 && state.discovered.length > 6) {
+        // Migrate from old tutorial versions
+        if (state.tutorialStep >= 9 && state.discovered.length > 6) {
           state.tutorialStep = TUTORIAL_COMPLETE + 1;
+        }
+
+        // v2.1 save migration: remove diquarks, add energy to starters
+        const diquarks = ['diquark_uu', 'diquark_dd', 'diquark_ud'];
+        state.discovered = state.discovered.filter(id => !diquarks.includes(id));
+        for (const dq of diquarks) {
+          delete state.inventory[dq];
+          delete state.mastery[dq];
+        }
+        // Remove tried pairs involving diquarks
+        if (state.triedPairs) {
+          state.triedPairs = state.triedPairs.filter(pair => !diquarks.some(dq => pair.includes(dq)));
+        }
+        // Ensure energy is discovered (it's now a starter)
+        if (!state.discovered.includes('energy')) {
+          state.discovered.push('energy');
+        }
+        // Ensure all starters are discovered
+        for (const id of STARTING_ELEMENTS) {
+          if (!state.discovered.includes(id)) {
+            state.discovered.push(id);
+          }
         }
         return true;
       }
@@ -337,7 +361,8 @@
     let count = 0;
     const seen = new Set();
     for (const h of hints) {
-      if (state.discovered.includes(h.partner) && !state.discovered.includes(h.result) && !seen.has(h.result)) {
+      const partnersDiscovered = h.partners.every(p => state.discovered.includes(p));
+      if (partnersDiscovered && !state.discovered.includes(h.result) && !seen.has(h.result)) {
         count++;
         seen.add(h.result);
       }
@@ -423,14 +448,14 @@
     const slotted = slot1Element && !slot2Element ? slot1Element : slot2Element && !slot1Element ? slot2Element : null;
     if (slotted && !search) {
       const hints = RECIPES_BY_INPUT[slotted] || [];
-      const seenPartners = new Set();
+      const seenResults = new Set();
       const knownCombos = [];
       for (const h of hints) {
-        if (!state.discovered.includes(h.partner)) continue;
+        if (!h.partners.every(p => state.discovered.includes(p))) continue;
         if (!state.discovered.includes(h.result)) continue;
-        if (seenPartners.has(h.partner)) continue;
-        seenPartners.add(h.partner);
-        knownCombos.push({ partner: h.partner, result: h.result });
+        if (seenResults.has(h.result)) continue;
+        seenResults.add(h.result);
+        knownCombos.push({ partners: h.partners, result: h.result });
       }
 
       if (knownCombos.length > 0) {
@@ -447,17 +472,20 @@
         const comboSection = document.createElement('div');
         comboSection.className = 'category-section';
         for (const h of knownCombos) {
-          const card = createElementCard(h.partner, handleElementClick);
-          if (h.partner === slot1Element || h.partner === slot2Element) card.classList.add('selected');
+          // Show the first partner as the clickable card
+          const primaryPartner = h.partners[0];
+          const card = createElementCard(primaryPartner, handleElementClick);
+          if (primaryPartner === slot1Element || primaryPartner === slot2Element || primaryPartner === slot3Element) card.classList.add('selected');
           const resultEl = ELEMENTS[h.result];
           if (resultEl) {
             const tag = document.createElement('span');
             tag.className = 'combo-result-tag';
-            tag.textContent = '\u2192 ' + resultEl.name;
+            const partnerNames = h.partners.map(p => ELEMENTS[p] ? ELEMENTS[p].name : p).join(' + ');
+            tag.textContent = '+ ' + partnerNames + ' \u2192 ' + resultEl.name;
             tag.style.color = resultEl.color;
             card.appendChild(tag);
           }
-          card.addEventListener('contextmenu', (e) => { e.preventDefault(); togglePin(h.partner); });
+          card.addEventListener('contextmenu', (e) => { e.preventDefault(); togglePin(primaryPartner); });
           comboSection.appendChild(card);
         }
         grid.appendChild(comboSection);
@@ -561,41 +589,91 @@
     SFX.play('click');
     batchCount = 1;
 
-    if (slot1Element === null) {
-      slot1Element = elementId;
-      selectedSlot = 2;
-    } else if (slot2Element === null) {
-      slot2Element = elementId;
+    if (threeSlotMode) {
+      // 3-slot mode filling
+      if (slot1Element === null) {
+        slot1Element = elementId;
+        selectedSlot = 2;
+      } else if (slot2Element === null) {
+        slot2Element = elementId;
+        selectedSlot = 3;
+      } else if (slot3Element === null) {
+        slot3Element = elementId;
+      } else {
+        // All filled — shift
+        slot1Element = slot2Element;
+        slot2Element = slot3Element;
+        slot3Element = elementId;
+      }
     } else {
-      slot1Element = slot2Element;
-      slot2Element = elementId;
+      // 2-slot mode filling
+      if (slot1Element === null) {
+        slot1Element = elementId;
+        selectedSlot = 2;
+      } else if (slot2Element === null) {
+        slot2Element = elementId;
+      } else {
+        slot1Element = slot2Element;
+        slot2Element = elementId;
+      }
     }
 
     updateForgeSlots();
     renderElementGrid();
     showElementInfo(elementId);
 
-    // Tutorial progression
+    // Tutorial progression (3-slot proton: u + u + d)
     if (state.tutorialStep === 2 && elementId === 'up_quark' && slot1Element === 'up_quark') {
       advanceTutorial(3);
     } else if (state.tutorialStep === 3 && elementId === 'up_quark' && slot2Element === 'up_quark') {
+      // Both up quarks placed → activate 3-slot mode for proton
+      setThreeSlotMode(true);
       advanceTutorial(4);
-    } else if (state.tutorialStep === 7 && elementId === 'diquark_uu' && slot1Element === 'diquark_uu') {
-      advanceTutorial(8);
-    } else if (state.tutorialStep === 8 && elementId === 'down_quark' && slot2Element === 'down_quark') {
-      advanceTutorial(9);
+      // Auto-advance to step 5 after 3 seconds
+      setTimeout(() => {
+        if (state.tutorialStep === 4) advanceTutorial(5);
+      }, 3000);
+    } else if (state.tutorialStep === 5 && elementId === 'down_quark' && slot3Element === 'down_quark') {
+      advanceTutorial(6);
+    }
+  }
+
+  // Show/hide the 3rd slot with animation
+  function setThreeSlotMode(enable) {
+    threeSlotMode = enable;
+    const slot3 = document.getElementById('slot-3');
+    const plus3 = document.getElementById('forge-plus-3');
+    if (!slot3 || !plus3) return;
+
+    if (enable) {
+      plus3.style.display = '';
+      slot3.style.display = '';
+      plus3.classList.add('slot3-enter');
+      slot3.classList.add('slot3-enter');
+    } else {
+      plus3.style.display = 'none';
+      slot3.style.display = 'none';
+      plus3.classList.remove('slot3-enter');
+      slot3.classList.remove('slot3-enter');
+      slot3Element = null;
     }
   }
 
   function updateForgeSlots() {
     const s1 = document.getElementById('slot-1');
     const s2 = document.getElementById('slot-2');
+    const s3 = document.getElementById('slot-3');
     const combineBtn = document.getElementById('btn-combine');
 
     renderSlot(s1, slot1Element);
     renderSlot(s2, slot2Element);
+    if (s3) renderSlot(s3, slot3Element);
 
-    combineBtn.disabled = !(slot1Element && slot2Element);
+    if (threeSlotMode) {
+      combineBtn.disabled = !(slot1Element && slot2Element && slot3Element);
+    } else {
+      combineBtn.disabled = !(slot1Element && slot2Element);
+    }
 
     // Update forge preview
     updateForgePreview();
@@ -604,18 +682,32 @@
     updateBatchCraftBar();
   }
 
+  function getForgeInputs() {
+    if (threeSlotMode) {
+      if (slot1Element && slot2Element && slot3Element) {
+        return [slot1Element, slot2Element, slot3Element];
+      }
+      return null;
+    }
+    if (slot1Element && slot2Element) {
+      return [slot1Element, slot2Element];
+    }
+    return null;
+  }
+
   function updateForgePreview() {
     const preview = document.getElementById('forge-preview');
     const nameEl = document.getElementById('forge-preview-name');
     if (!preview || !nameEl) return;
 
-    if (!slot1Element || !slot2Element) {
+    const inputs = getForgeInputs();
+    if (!inputs) {
       preview.style.display = 'none';
       return;
     }
 
     preview.style.display = 'flex';
-    const result = tryCombine(slot1Element, slot2Element);
+    const result = tryCombine(inputs);
 
     if (result && state.discovered.includes(result)) {
       const el = ELEMENTS[result];
@@ -631,14 +723,24 @@
     }
   }
 
-  function getMaxBatchCrafts(input1, input2) {
-    if (!input1 || !input2) return 0;
-    const s1 = shouldConsume(input1) ? getStock(input1) : Infinity;
-    const s2 = shouldConsume(input2) ? getStock(input2) : Infinity;
-    if (input1 === input2) {
-      return shouldConsume(input1) ? Math.floor(s1 / 2) : Infinity;
+  function getMaxBatchCrafts(input1, input2, input3) {
+    const inputs = input3 ? [input1, input2, input3] : [input1, input2];
+    if (inputs.some(i => !i)) return 0;
+
+    // Count how many of each unique input are needed
+    const needed = {};
+    for (const i of inputs) {
+      needed[i] = (needed[i] || 0) + 1;
     }
-    return Math.min(s1, s2);
+
+    let max = Infinity;
+    for (const [id, count] of Object.entries(needed)) {
+      if (shouldConsume(id)) {
+        const stock = getStock(id);
+        max = Math.min(max, Math.floor(stock / count));
+      }
+    }
+    return max;
   }
 
   function triggerBatchGlitch(btnId) {
@@ -663,17 +765,18 @@
     if (!bar) return;
 
     // Only show for known recipes (result already discovered)
-    if (!slot1Element || !slot2Element) {
+    const inputs = getForgeInputs();
+    if (!inputs) {
       bar.style.display = 'none';
       return;
     }
-    const result = tryCombine(slot1Element, slot2Element);
+    const result = tryCombine(inputs);
     if (!result || !state.discovered.includes(result)) {
       bar.style.display = 'none';
       return;
     }
 
-    const maxCrafts = getMaxBatchCrafts(slot1Element, slot2Element);
+    const maxCrafts = getMaxBatchCrafts(inputs[0], inputs[1], inputs[2]);
     if (maxCrafts <= 1) {
       bar.style.display = 'none';
       return;
@@ -735,25 +838,25 @@
   // BATCH CRAFT — craft N of a known recipe at once
   // ============================================================
   function handleBatchCraft() {
-    if (!slot1Element || !slot2Element) return;
-    const result = tryCombine(slot1Element, slot2Element);
+    const inputs = getForgeInputs();
+    if (!inputs) return;
+    const result = tryCombine(inputs);
     if (!result || !state.discovered.includes(result)) return;
 
-    const input1 = slot1Element;
-    const input2 = slot2Element;
-    const maxCrafts = getMaxBatchCrafts(input1, input2);
+    const maxCrafts = getMaxBatchCrafts(inputs[0], inputs[1], inputs[2]);
     if (maxCrafts < 1) {
-      offerRecraft(input1);
+      offerRecraft(inputs[0]);
       return;
     }
     const count = Math.max(1, Math.min(batchCount, maxCrafts));
 
-    // Consume inputs
-    if (input1 === input2) {
-      removeStock(input1, count * 2);
-    } else {
-      removeStock(input1, count);
-      removeStock(input2, count);
+    // Consume inputs — count how many of each unique input
+    const needed = {};
+    for (const id of inputs) {
+      needed[id] = (needed[id] || 0) + 1;
+    }
+    for (const [id, n] of Object.entries(needed)) {
+      removeStock(id, count * n);
     }
 
     // Each craft updates mastery
@@ -812,17 +915,17 @@
     const el = ELEMENTS[elementId];
     if (!el) return;
 
-    // Find a known recipe where both inputs are available
+    // Find a known recipe where all inputs are available
     const recipes = getRecipesFor(elementId);
     let bestRecipe = null;
-    for (const [a, b] of recipes) {
-      if (!state.discovered.includes(a) || !state.discovered.includes(b)) continue;
-      const stockA = getStock(a);
-      const stockB = getStock(b);
-      const needA = a === b ? 2 : 1;
-      const needB = a === b ? 0 : 1;
-      if (stockA >= needA && stockB >= needB) {
-        bestRecipe = [a, b];
+    for (const inputs of recipes) {
+      if (!inputs.every(id => state.discovered.includes(id))) continue;
+      // Count how many of each input we need
+      const needed = {};
+      for (const id of inputs) needed[id] = (needed[id] || 0) + 1;
+      const hasStock = Object.entries(needed).every(([id, n]) => getStock(id) >= n);
+      if (hasStock) {
+        bestRecipe = inputs;
         break;
       }
     }
@@ -831,19 +934,27 @@
     resultEl.style.display = 'block';
 
     if (bestRecipe) {
-      const elA = ELEMENTS[bestRecipe[0]], elB = ELEMENTS[bestRecipe[1]];
+      const recipeText = bestRecipe.map(id => `<span style="color:${ELEMENTS[id].color}">${ELEMENTS[id].name}</span>`).join(' + ');
       resultEl.className = 'forge-result recraft';
       resultEl.innerHTML = `
         <div class="result-text">
           <strong style="color:${el.color}">${el.name}</strong> is out of stock!
         </div>
         <button class="btn btn-recraft" id="btn-recraft">
-          Recraft: <span style="color:${elA.color}">${elA.name}</span> + <span style="color:${elB.color}">${elB.name}</span>
+          Recraft: ${recipeText}
         </button>
       `;
       document.getElementById('btn-recraft').addEventListener('click', () => {
-        slot1Element = bestRecipe[0];
-        slot2Element = bestRecipe[1];
+        if (bestRecipe.length === 3) {
+          setThreeSlotMode(true);
+          slot1Element = bestRecipe[0];
+          slot2Element = bestRecipe[1];
+          slot3Element = bestRecipe[2];
+        } else {
+          if (threeSlotMode) setThreeSlotMode(false);
+          slot1Element = bestRecipe[0];
+          slot2Element = bestRecipe[1];
+        }
         updateForgeSlots();
         renderElementGrid();
         resultEl.style.display = 'none';
@@ -852,17 +963,14 @@
       // No craftable recipe — show what's needed with clickable ingredient links
       resultEl.className = 'forge-result recraft';
       let recipeHTML = '';
-      for (const [a, b] of recipes) {
-        if (!state.discovered.includes(a) || !state.discovered.includes(b)) continue;
-        const elA = ELEMENTS[a], elB = ELEMENTS[b];
-        const stockA = getStock(a), stockB = getStock(b);
-        const aLabel = stockA <= 0 ? `${elA.name} (0)` : `${elA.name} (${stockA === Infinity ? '\u221E' : stockA})`;
-        const bLabel = stockB <= 0 ? `${elB.name} (0)` : `${elB.name} (${stockB === Infinity ? '\u221E' : stockB})`;
-        recipeHTML = `
-          <span class="recraft-link" data-id="${a}" style="color:${elA.color}">${aLabel}</span>
-          +
-          <span class="recraft-link" data-id="${b}" style="color:${elB.color}">${bLabel}</span>
-        `;
+      for (const inputs of recipes) {
+        if (!inputs.every(id => state.discovered.includes(id))) continue;
+        recipeHTML = inputs.map(id => {
+          const e = ELEMENTS[id];
+          const stock = getStock(id);
+          const label = stock <= 0 ? `${e.name} (0)` : `${e.name} (${stock === Infinity ? '\u221E' : stock})`;
+          return `<span class="recraft-link" data-id="${id}" style="color:${e.color}">${label}</span>`;
+        }).join(' + ');
         break;
       }
       resultEl.innerHTML = `
@@ -907,7 +1015,8 @@
   }
 
   function handleCombine() {
-    if (!slot1Element || !slot2Element) return;
+    const inputs = getForgeInputs();
+    if (!inputs) return;
 
     // Check decoherence lockout
     if (state.stats.stabilityMeter <= 0 && decoherenceTimer) {
@@ -915,48 +1024,38 @@
       return;
     }
 
-    // Check stock for consumable inputs
-    const input1 = slot1Element;
-    const input2 = slot2Element;
-
-    // Special case: same element in both slots needs 2 stock
-    if (input1 === input2 && shouldConsume(input1)) {
-      if (getStock(input1) < 2) {
-        offerRecraft(input1);
-        return;
-      }
-    } else {
-      if (shouldConsume(input1) && getStock(input1) < 1) {
-        offerRecraft(input1);
-        return;
-      }
-      if (shouldConsume(input2) && getStock(input2) < 1) {
-        offerRecraft(input2);
+    // Check stock for consumable inputs — count how many of each we need
+    const needed = {};
+    for (const id of inputs) {
+      needed[id] = (needed[id] || 0) + 1;
+    }
+    for (const [id, count] of Object.entries(needed)) {
+      if (shouldConsume(id) && getStock(id) < count) {
+        offerRecraft(id);
         return;
       }
     }
 
-    const alreadyTried = hasTriedPair(input1, input2);
+    const pairKey = [...inputs].sort().join('|');
+    const alreadyTried = state.triedPairs && state.triedPairs.includes(pairKey);
     state.stats.totalCombinations++;
-    markPairTried(input1, input2);
+    if (!state.triedPairs) state.triedPairs = [];
+    if (!state.triedPairs.includes(pairKey)) state.triedPairs.push(pairKey);
 
-    const result = tryCombine(input1, input2);
+    const result = tryCombine(inputs);
     const resultEl = document.getElementById('forge-result');
     resultEl.style.display = 'block';
 
     if (result) {
       const el = ELEMENTS[result];
       if (!el) {
-        onCombineFail(resultEl, input1, input2, alreadyTried);
+        onCombineFail(resultEl, inputs[0], inputs[1], alreadyTried);
         return;
       }
 
       // Consume inputs
-      if (input1 === input2) {
-        removeStock(input1, 2);
-      } else {
-        removeStock(input1, 1);
-        removeStock(input2, 1);
+      for (const [id, count] of Object.entries(needed)) {
+        removeStock(id, count);
       }
 
       const isNew = !state.discovered.includes(result);
@@ -1003,11 +1102,9 @@
         // Show discovery modal
         showDiscoveryModal(result, qeEarned);
 
-        // Tutorial: advance after crafts
-        if (state.tutorialStep === 4) {
-          advanceTutorial(5);  // diquark crafted → silent wait for modal
-        } else if (state.tutorialStep === 9) {
-          advanceTutorial(10); // proton crafted → silent wait for modal
+        // Tutorial: advance after proton crafted
+        if (state.tutorialStep === 6) {
+          advanceTutorial(7);  // proton crafted → silent wait for modal
         }
 
         // Check achievements
@@ -1035,13 +1132,16 @@
         resultEl.innerHTML = `<div class="result-text">Created <strong style="color:${el.color}">${el.name}${yieldText}</strong> <span class="qe-earned-inline">+${qeEarned} QE</span></div>`;
       }
     } else {
-      onCombineFail(resultEl, input1, input2, alreadyTried);
+      onCombineFail(resultEl, inputs[0], inputs[1], alreadyTried);
     }
 
     // Clear slots
     slot1Element = null;
     slot2Element = null;
+    slot3Element = null;
     selectedSlot = 1;
+    // Exit 3-slot mode after combining
+    if (threeSlotMode) setThreeSlotMode(false);
     updateForgeSlots();
     renderElementGrid();
     renderRecentDiscoveries();
@@ -1455,18 +1555,18 @@
     const el1 = ELEMENTS[id1], el2 = ELEMENTS[id2];
 
     for (const h of hints1) {
-      if (state.discovered.includes(h.partner) && !state.discovered.includes(h.result)) {
-        const partner = ELEMENTS[h.partner];
-        if (partner) {
-          return `Close! <strong>${el1.name}</strong> does react with something \u2014 try a <em>${partner.role || 'different'}</em> type particle.`;
+      if (h.partners.every(p => state.discovered.includes(p)) && !state.discovered.includes(h.result)) {
+        const firstPartner = ELEMENTS[h.partners[0]];
+        if (firstPartner) {
+          return `Close! <strong>${el1.name}</strong> does react with something \u2014 try a <em>${firstPartner.role || 'different'}</em> type particle.`;
         }
       }
     }
     for (const h of hints2) {
-      if (state.discovered.includes(h.partner) && !state.discovered.includes(h.result)) {
-        const partner = ELEMENTS[h.partner];
-        if (partner) {
-          return `Close! <strong>${el2.name}</strong> does react with something \u2014 try a <em>${partner.role || 'different'}</em> type particle.`;
+      if (h.partners.every(p => state.discovered.includes(p)) && !state.discovered.includes(h.result)) {
+        const firstPartner = ELEMENTS[h.partners[0]];
+        if (firstPartner) {
+          return `Close! <strong>${el2.name}</strong> does react with something \u2014 try a <em>${firstPartner.role || 'different'}</em> type particle.`;
         }
       }
     }
@@ -1481,21 +1581,25 @@
     const hints2 = RECIPES_BY_INPUT[id2] || [];
 
     for (const h of hints1) {
-      const partnerEl = ELEMENTS[h.partner];
-      if (partnerEl && partnerEl.era === el2.era) return 'near-miss';
+      for (const p of h.partners) {
+        const partnerEl = ELEMENTS[p];
+        if (partnerEl && partnerEl.era === el2.era) return 'near-miss';
+      }
     }
     for (const h of hints2) {
-      const partnerEl = ELEMENTS[h.partner];
-      if (partnerEl && partnerEl.era === el1.era) return 'near-miss';
+      for (const p of h.partners) {
+        const partnerEl = ELEMENTS[p];
+        if (partnerEl && partnerEl.era === el1.era) return 'near-miss';
+      }
     }
 
     if (Math.abs(el1.era - el2.era) > 2) return 'wrong-era';
 
     const hasUndiscoveredRecipe1 = hints1.some(h =>
-      !state.discovered.includes(h.result) && state.discovered.includes(h.partner)
+      !state.discovered.includes(h.result) && h.partners.every(p => state.discovered.includes(p))
     );
     const hasUndiscoveredRecipe2 = hints2.some(h =>
-      !state.discovered.includes(h.result) && state.discovered.includes(h.partner)
+      !state.discovered.includes(h.result) && h.partners.every(p => state.discovered.includes(p))
     );
     if (hasUndiscoveredRecipe1 || hasUndiscoveredRecipe2) return 'needs-intermediate';
 
@@ -1558,9 +1662,10 @@
     const hintsDiv = document.getElementById('discovery-next-hints');
     const nextCombos = getNextCombosFor(elementId);
     if (nextCombos.length > 0) {
-      const hintItems = nextCombos.slice(0, 2).map(h =>
-        `<span style="color:${el.color}">${el.name}</span> + <span style="color:${ELEMENTS[h.partner].color}">${ELEMENTS[h.partner].name}</span> = ???`
-      ).join('<br>');
+      const hintItems = nextCombos.slice(0, 2).map(h => {
+        const partnerNames = h.partners.map(p => `<span style="color:${ELEMENTS[p].color}">${ELEMENTS[p].name}</span>`).join(' + ');
+        return `<span style="color:${el.color}">${el.name}</span> + ${partnerNames} = ???`;
+      }).join('<br>');
       hintsDiv.innerHTML = `<div class="next-try"><h4>Now try</h4>${hintItems}</div>`;
       hintsDiv.style.display = 'block';
     } else {
@@ -1596,23 +1701,13 @@
       // Remove expanded journal if open
       const expanded = document.getElementById('discovery-journal-expanded');
       if (expanded) expanded.remove();
-      // Tutorial: advance after closing discovery modal
-      if (state.tutorialStep === 5) {
-        advanceTutorial(6);
-        // Auto-advance step 6→7 after 5 seconds
+      // Tutorial: advance after closing proton discovery modal
+      if (state.tutorialStep === 7) {
+        advanceTutorial(8);
+        // Auto-finish tutorial after step 8
         setTimeout(() => {
-          if (state.tutorialStep === 6) advanceTutorial(7);
-        }, 5000);
-      } else if (state.tutorialStep === 10) {
-        advanceTutorial(11);
-        // Auto-advance step 11→12 after 6 seconds
-        setTimeout(() => {
-          if (state.tutorialStep === 11) advanceTutorial(12);
-        }, 6000);
-        // Auto-finish after step 12
-        setTimeout(() => {
-          if (state.tutorialStep === 12) advanceTutorial(TUTORIAL_COMPLETE + 1);
-        }, 12000);
+          if (state.tutorialStep === 8) advanceTutorial(TUTORIAL_COMPLETE + 1);
+        }, 8000);
       }
     };
 
@@ -1622,7 +1717,7 @@
   function getNextCombosFor(elementId) {
     const hints = RECIPES_BY_INPUT[elementId] || [];
     return hints.filter(h =>
-      state.discovered.includes(h.partner) && !state.discovered.includes(h.result)
+      h.partners.every(p => state.discovered.includes(p)) && !state.discovered.includes(h.result)
     );
   }
 
@@ -1646,10 +1741,10 @@
 
     for (const target of undiscovered) {
       const recipes = getRecipesFor(target);
-      for (const [a, b] of recipes) {
-        if (state.discovered.includes(a) && state.discovered.includes(b)) {
-          const elA = ELEMENTS[a], elB = ELEMENTS[b];
-          return `Try combining something related to "${elA.name}" with "${elB.name}"...`;
+      for (const inputs of recipes) {
+        if (inputs.every(id => state.discovered.includes(id))) {
+          const names = inputs.map(id => ELEMENTS[id].name);
+          return `Try combining ${names.join(' and ')}...`;
         }
       }
     }
@@ -1895,13 +1990,12 @@
 
     if (recipes.length > 0) {
       recipesDiv.style.display = 'block';
-      for (const [a, b] of recipes) {
-        const hasA = state.discovered.includes(a);
-        const hasB = state.discovered.includes(b);
-        if (hasA && hasB) {
+      for (const inputs of recipes) {
+        const allDiscovered = inputs.every(id => state.discovered.includes(id));
+        if (allDiscovered) {
           const item = document.createElement('div');
           item.className = 'recipe-item';
-          item.innerHTML = `<span style="color:${ELEMENTS[a].color}">${ELEMENTS[a].name}</span> + <span style="color:${ELEMENTS[b].color}">${ELEMENTS[b].name}</span>`;
+          item.innerHTML = inputs.map(id => `<span style="color:${ELEMENTS[id].color}">${ELEMENTS[id].name}</span>`).join(' + ');
           recipesList.appendChild(item);
         }
       }
@@ -2261,21 +2355,17 @@
   // ============================================================
   // FTUE TUTORIAL SYSTEM
   // ============================================================
-  const TUTORIAL_COMPLETE = 12;
+  const TUTORIAL_COMPLETE = 8;
 
   const TUTORIAL_STEPS = {
-    1: { msg: 'Welcome! You have 6 fundamental particles. Let\'s build a <strong>Proton</strong>!' },
-    2: { msg: 'Click <strong>Up Quark</strong> to place it in the forge.', target: 'up_quark', highlight: 'element' },
+    1: { msg: 'Welcome! You have 7 building blocks. Let\'s build a <strong>Proton</strong> from 3 quarks!' },
+    2: { msg: 'Click <strong>Up Quark</strong> to place it in slot 1.', target: 'up_quark', highlight: 'element' },
     3: { msg: 'Click <strong>Up Quark</strong> again for slot 2.', target: 'up_quark', highlight: 'element' },
-    4: { msg: 'Press <strong>Combine</strong> to fuse them!', highlight: 'combine' },
-    5: null, // silent — discovery modal is showing
-    6: { msg: 'Your Di-Quark has <strong>stock: 1</strong> — intermediates are <strong>consumed</strong> when used, so you\'ll need to re-craft them.', target: 'diquark_uu', highlight: 'element' },
-    7: { msg: 'Now click your <strong>Di-Quark</strong> to place it in the forge.', target: 'diquark_uu', highlight: 'element' },
-    8: { msg: 'Add a <strong>Down Quark</strong> to complete the proton recipe!', target: 'down_quark', highlight: 'element' },
-    9: { msg: 'Press <strong>Combine</strong> — you\'re about to make a Proton!', highlight: 'combine' },
-    10: null, // silent — discovery modal showing for proton
-    11: { msg: 'See these <strong>Research Notes</strong>? They\'re your quests — each one guides you toward your next discovery.', highlight: 'selector', selector: '.research-notes-panel', side: 'left' },
-    12: { msg: 'The <strong>gold stars</strong> on elements show undiscovered combos. Use the <strong>Useful</strong> filter to focus on what matters. You\'re ready — go build the universe!', highlight: 'selector', selector: '#view-useful', side: 'right' }
+    4: { msg: 'A 3rd slot appeared! Protons need <strong>2 Up + 1 Down</strong>. Click the <strong>3-slot button</strong> or it auto-expanded.', highlight: 'combine' },
+    5: { msg: 'Now click <strong>Down Quark</strong> to fill slot 3.', target: 'down_quark', highlight: 'element' },
+    6: { msg: 'Press <strong>Combine</strong> — you\'re about to make a Proton from 3 quarks!', highlight: 'combine' },
+    7: null, // silent — discovery modal showing for proton
+    8: { msg: 'See these <strong>Research Notes</strong>? They guide your next discovery. The <strong>Useful</strong> filter shows elements with undiscovered combos. Go build the universe!' , highlight: 'selector', selector: '.research-notes-panel', side: 'left' }
   };
 
   function advanceTutorial(toStep) {
@@ -2587,6 +2677,22 @@
         renderElementGrid();
       }
     });
+    document.getElementById('slot-3').addEventListener('click', () => {
+      if (slot3Element) {
+        slot3Element = null;
+        selectedSlot = 3;
+        updateForgeSlots();
+        renderElementGrid();
+      }
+    });
+    document.getElementById('btn-toggle-slots').addEventListener('click', () => {
+      if (threeSlotMode) {
+        setThreeSlotMode(false);
+      } else {
+        setThreeSlotMode(true);
+      }
+      updateForgeSlots();
+    });
 
     // Filters
     // View mode buttons
@@ -2732,6 +2838,8 @@
         if (matchedPair) {
           slot1Element = matchedPair[0];
           slot2Element = matchedPair[1];
+          slot3Element = null;
+          if (threeSlotMode) setThreeSlotMode(false);
           updateForgeSlots();
           renderElementGrid();
           handleCombine();
@@ -2743,6 +2851,22 @@
         if (el1 && el2) {
           slot1Element = el1;
           slot2Element = el2;
+          slot3Element = null;
+          if (threeSlotMode) setThreeSlotMode(false);
+          updateForgeSlots();
+          renderElementGrid();
+          handleCombine();
+          return;
+        }
+      } else if (parts.length === 3) {
+        const el1 = findElementByName(parts[0]);
+        const el2 = findElementByName(parts[1]);
+        const el3 = findElementByName(parts[2]);
+        if (el1 && el2 && el3) {
+          setThreeSlotMode(true);
+          slot1Element = el1;
+          slot2Element = el2;
+          slot3Element = el3;
           updateForgeSlots();
           renderElementGrid();
           handleCombine();
@@ -2752,7 +2876,7 @@
       if (resultEl) {
         resultEl.style.display = 'block';
         resultEl.className = 'forge-result failure';
-        resultEl.innerHTML = '<div class="result-text">Could not parse elements. Use: combine element1 + element2</div>';
+        resultEl.innerHTML = '<div class="result-text">Could not parse elements. Use: combine el1 + el2 or combine el1 + el2 + el3</div>';
       }
     } else if (cmd.startsWith('journal ')) {
       const name = cmd.substring(8).trim();

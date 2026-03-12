@@ -12,7 +12,7 @@ const CHALLENGES = [
     difficulty: 1,
     type: 'discovery',
     goal: ['hydrogen'],
-    maxCombinations: 6,
+    maxCombinations: 4,
     startingElements: ['up_quark', 'down_quark', 'electron', 'photon', 'neutrino', 'gluon'],
     hint: 'Atoms are made of protons and electrons. Protons are made of quarks...',
     teaches: 'How atoms are built from subatomic particles'
@@ -24,7 +24,7 @@ const CHALLENGES = [
     difficulty: 1,
     type: 'discovery',
     goal: ['antimatter'],
-    maxCombinations: 8,
+    maxCombinations: 6,
     startingElements: ['up_quark', 'down_quark', 'electron', 'photon', 'neutrino', 'gluon'],
     hint: 'First create a positron, then combine antiparticles...',
     teaches: 'How antimatter is the mirror image of normal matter'
@@ -192,11 +192,11 @@ const CHALLENGES = [
   {
     id: 'speedrun_hydrogen',
     name: 'Speedrun: Hydrogen',
-    description: 'Create Hydrogen in exactly 3 combinations. No wasted moves!',
+    description: 'Create Hydrogen in exactly 2 combinations. No wasted moves!',
     difficulty: 2,
     type: 'discovery',
     goal: ['hydrogen'],
-    maxCombinations: 3,
+    maxCombinations: 2,
     startingElements: ['up_quark', 'down_quark', 'electron', 'photon', 'neutrino', 'gluon'],
     hint: 'What\'s the fastest path from quarks to a proton?',
     teaches: 'The most direct path from quarks to atoms'

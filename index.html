@@ -115,12 +115,17 @@
         <!-- The Forge -->
         <div id="forge-area" class="forge-area">
           <h2 class="forge-title">The Forge</h2>
+          <button id="btn-toggle-slots" class="btn btn-tiny btn-slot-toggle" title="Toggle 3-slot mode for 3-quark recipes">3-Slot</button>
           <div class="forge-slots">
             <div id="slot-1" class="forge-slot" data-slot="1">
               <span class="slot-placeholder">Select an element</span>
             </div>
             <div class="forge-plus">+</div>
             <div id="slot-2" class="forge-slot" data-slot="2">
+              <span class="slot-placeholder">Select an element</span>
+            </div>
+            <div class="forge-plus forge-plus-3" id="forge-plus-3" style="display:none;">+</div>
+            <div id="slot-3" class="forge-slot forge-slot-3" data-slot="3" style="display:none;">
               <span class="slot-placeholder">Select an element</span>
             </div>
           </div>
@@ -339,6 +344,10 @@
             <div id="challenge-slot-2" class="forge-slot" data-slot="2">
               <span class="slot-placeholder">Select an element</span>
             </div>
+            <div class="forge-plus forge-plus-3" id="challenge-forge-plus-3" style="display:none;">+</div>
+            <div id="challenge-slot-3" class="forge-slot forge-slot-3" data-slot="3" style="display:none;">
+              <span class="slot-placeholder">Select an element</span>
+            </div>
           </div>
           <button id="btn-challenge-combine" class="btn btn-combine" disabled>Combine</button>
           <div id="challenge-forge-result" class="forge-result" style="display:none;"></div>
@@ -415,8 +424,8 @@
     <div class="modal-content intro-modal-content">
       <div id="tutorial-step-1" class="tutorial-step">
         <h2>Welcome to the Quantum Forge</h2>
-        <p>You have <strong>6 fundamental particles</strong>. Combine them to recreate the discoveries of physics — from quarks to quantum computers.</p>
-        <p class="tutorial-key-insight">Let's build your first particle: a <strong>Proton</strong>!</p>
+        <p>You have <strong>7 fundamental building blocks</strong>. Combine them to recreate the discoveries of physics — from quarks to quantum computers.</p>
+        <p class="tutorial-key-insight">Let's build your first particle: a <strong>Proton</strong> from 3 quarks!</p>
         <button id="btn-tutorial-start" class="btn btn-primary">Let's Go!</button>
       </div>
     </div>

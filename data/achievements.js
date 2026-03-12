@@ -19,7 +19,7 @@ const ACHIEVEMENTS = [
     description: 'Discover 10 elements.',
     tier: 'silver',
     category: 'discovery',
-    check: (state) => state.discovered.length >= 10 + STARTING_ELEMENTS.length
+    check: (state) => state.discovered.length >= 10 + STARTING_ELEMENTS.length  // 7 starters + 10 = 17
   },
   {
     id: 'half_universe',

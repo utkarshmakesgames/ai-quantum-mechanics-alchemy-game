@@ -1,10 +1,9 @@
-// Quantum Forge v2 — Combination Recipes
-// Each recipe: [input1, input2, output]
-// Recipes are commutative: [a, b] = [b, a]
+// Quantum Forge v2.1 — Combination Recipes (Physics-Corrected)
+// Each recipe: { inputs: [id, id, ...], output: id }
+// Supports 2-input and 3-input recipes.
 //
 // CONSUMPTION RULES (handled in game.js based on element properties):
 // - Fundamental particles (starters): NEVER consumed — infinite supply
-// - Intermediates (isIntermediate: true): ALWAYS consumed on use
 // - Concepts/phenomena/forces: NEVER consumed — knowledge persists
 // - Everything else (composites, atoms): consumed, tracked by stock count
 
@@ -13,448 +12,449 @@ const RECIPES = [
   // ERA 1: FIRST DISCOVERIES — The Strong Force
   // ================================================================
 
-  // Di-quarks: quark pairing intermediates (scientifically: diquark correlations)
-  ['up_quark', 'up_quark', 'diquark_uu'],
-  ['down_quark', 'down_quark', 'diquark_dd'],
-  ['up_quark', 'down_quark', 'diquark_ud'],
+  // Proton: uud — 3-quark assembly (no diquarks!)
+  { inputs: ['up_quark', 'up_quark', 'down_quark'], output: 'proton' },
 
-  // Energy: discoverable from photons (light IS energy, E=hf)
-  ['photon', 'photon', 'energy'],
-
-  // Proton: uud — scientifically accurate two-step assembly
-  ['diquark_uu', 'down_quark', 'proton'],
-
-  // Neutron: ddu — scientifically accurate two-step assembly
-  ['diquark_dd', 'up_quark', 'neutron'],
+  // Neutron: udd — 3-quark assembly
+  { inputs: ['up_quark', 'down_quark', 'down_quark'], output: 'neutron' },
 
   // ================================================================
   // ERA 2: COMPOSITE PARTICLES
   // ================================================================
 
   // Hydrogen: simplest atom
-  ['proton', 'electron', 'hydrogen'],
+  { inputs: ['proton', 'electron'], output: 'hydrogen' },
 
-  // Positron (antimatter electron)
-  ['electron', 'photon', 'positron'],
-  ['electron', 'energy', 'positron'],
+  // Positron: pair production (photon + photon → e⁺ + e⁻, we give positron)
+  { inputs: ['photon', 'photon'], output: 'positron' },
+  { inputs: ['energy', 'electron'], output: 'positron' },
 
   // Antiproton
-  ['proton', 'energy', 'antiproton'],
+  { inputs: ['proton', 'energy'], output: 'antiproton' },
 
   // Quark-antiquark pair (meson building block)
-  ['up_quark', 'positron', 'quark_antiquark'],
-  ['diquark_ud', 'energy', 'quark_antiquark'],
+  { inputs: ['up_quark', 'energy'], output: 'quark_antiquark' },
 
   // Pion (meson)
-  ['quark_antiquark', 'energy', 'pion'],
-  ['proton', 'neutron', 'pion'],
+  { inputs: ['quark_antiquark', 'gluon'], output: 'pion' },
+  { inputs: ['quark_antiquark', 'energy'], output: 'pion' },
 
   // Muon
-  ['electron', 'neutrino', 'muon'],
-  ['pion', 'neutrino', 'muon'],
+  { inputs: ['electron', 'neutrino'], output: 'muon' },
+  { inputs: ['pion', 'neutrino'], output: 'muon' },
 
   // Tau
-  ['muon', 'energy', 'tau'],
+  { inputs: ['muon', 'energy'], output: 'tau' },
 
-  // W Boson
-  ['neutrino', 'proton', 'w_boson'],
-  ['weak_force', 'energy', 'w_boson'],
+  // W Boson (weak force carrier — produced via weak interactions)
+  { inputs: ['neutrino', 'energy'], output: 'w_boson' },
+  { inputs: ['weak_force', 'energy'], output: 'w_boson' },
 
   // Z Boson
-  ['w_boson', 'photon', 'z_boson'],
-  ['neutrino', 'neutrino', 'z_boson'],
+  { inputs: ['w_boson', 'photon'], output: 'z_boson' },
+  { inputs: ['neutrino', 'neutrino'], output: 'z_boson' },
 
-  // Higgs Boson
-  ['mass', 'energy', 'higgs_boson'],
-  ['w_boson', 'z_boson', 'higgs_boson'],
+  // Higgs Boson (produced via gluon-gluon fusion at LHC)
+  { inputs: ['gluon', 'gluon'], output: 'higgs_boson' },
+  { inputs: ['energy', 'energy'], output: 'higgs_boson' },
 
   // Deuteron (proton + neutron nucleus)
-  ['proton', 'neutron', 'deuteron'],
+  { inputs: ['proton', 'neutron'], output: 'deuteron' },
 
   // Deuterium (deuteron + electron)
-  ['deuteron', 'electron', 'deuterium'],
-  ['hydrogen', 'neutron', 'deuterium'],
+  { inputs: ['deuteron', 'electron'], output: 'deuterium' },
+  { inputs: ['hydrogen', 'neutron'], output: 'deuterium' },
 
   // Annihilation
-  ['electron', 'positron', 'annihilation'],
-  ['proton', 'antiproton', 'annihilation'],
+  { inputs: ['electron', 'positron'], output: 'annihilation' },
+  { inputs: ['proton', 'antiproton'], output: 'annihilation' },
 
   // Antimatter
-  ['positron', 'antiproton', 'antimatter'],
-  ['annihilation', 'energy', 'antimatter'],
+  { inputs: ['positron', 'antiproton'], output: 'antimatter' },
+  { inputs: ['annihilation', 'energy'], output: 'antimatter' },
 
-  // Beta decay
-  ['neutron', 'neutrino', 'beta_decay'],
-  ['neutron', 'weak_force', 'beta_decay'],
+  // Beta decay (neutron → proton + electron + antineutrino, mediated by weak force)
+  { inputs: ['neutron', 'weak_force'], output: 'beta_decay' },
+  { inputs: ['neutron', 'neutrino'], output: 'beta_decay' },
 
   // Strong Force
-  ['gluon', 'gluon', 'strong_force'],
-  ['proton', 'gluon', 'strong_force'],
+  { inputs: ['gluon', 'gluon'], output: 'strong_force' },
+  { inputs: ['proton', 'gluon'], output: 'strong_force' },
 
   // Weak Force
-  ['neutrino', 'electron', 'weak_force'],
-  ['beta_decay', 'neutrino', 'weak_force'],
+  { inputs: ['neutrino', 'electron'], output: 'weak_force' },
+  { inputs: ['beta_decay', 'neutrino'], output: 'weak_force' },
 
   // Electromagnetic Force
-  ['photon', 'electron', 'electromagnetic_force'],
-  ['photon', 'energy', 'electromagnetic_force'],
+  { inputs: ['photon', 'electron'], output: 'electromagnetic_force' },
+  { inputs: ['photon', 'energy'], output: 'electromagnetic_force' },
 
   // ================================================================
   // ERA 3: ATOMS & NUCLEAR PHYSICS
   // ================================================================
 
-  // Helium (requires rebuilding hydrogen — repetition!)
-  ['hydrogen', 'hydrogen', 'helium'],
-  ['deuterium', 'deuterium', 'helium'],
-  ['alpha_particle', 'electron', 'helium'],
+  // Helium
+  { inputs: ['hydrogen', 'hydrogen'], output: 'helium' },
+  { inputs: ['deuterium', 'deuterium'], output: 'helium' },
+  { inputs: ['alpha_particle', 'electron'], output: 'helium' },
 
   // Lithium
-  ['helium', 'hydrogen', 'lithium'],
-  ['helium', 'proton', 'lithium'],
+  { inputs: ['helium', 'hydrogen'], output: 'lithium' },
+  { inputs: ['helium', 'proton'], output: 'lithium' },
 
   // Carbon (triple-alpha simplified)
-  ['helium', 'helium', 'carbon'],
-  ['lithium', 'lithium', 'carbon'],
+  { inputs: ['helium', 'helium'], output: 'carbon' },
+  { inputs: ['lithium', 'lithium'], output: 'carbon' },
 
   // Nitrogen
-  ['carbon', 'hydrogen', 'nitrogen'],
-  ['carbon', 'proton', 'nitrogen'],
+  { inputs: ['carbon', 'hydrogen'], output: 'nitrogen' },
+  { inputs: ['carbon', 'proton'], output: 'nitrogen' },
 
   // Oxygen
-  ['carbon', 'helium', 'oxygen'],
-  ['nitrogen', 'hydrogen', 'oxygen'],
+  { inputs: ['carbon', 'helium'], output: 'oxygen' },
+  { inputs: ['nitrogen', 'hydrogen'], output: 'oxygen' },
 
   // Iron (end of fusion chain)
-  ['oxygen', 'oxygen', 'iron'],
-  ['carbon', 'carbon', 'iron'],
+  { inputs: ['oxygen', 'oxygen'], output: 'iron' },
+  { inputs: ['carbon', 'carbon'], output: 'iron' },
+
+  // Uranium (neutron capture on iron — simplified r-process)
+  { inputs: ['iron', 'neutron'], output: 'uranium' },
+  { inputs: ['iron', 'strong_force'], output: 'uranium' },
 
   // Atomic Nucleus
-  ['proton', 'proton', 'nucleus'],
-  ['strong_force', 'proton', 'nucleus'],
+  { inputs: ['proton', 'proton'], output: 'nucleus' },
+  { inputs: ['strong_force', 'proton'], output: 'nucleus' },
 
   // Alpha Particle
-  ['nucleus', 'helium', 'alpha_particle'],
-  ['helium', 'strong_force', 'alpha_particle'],
+  { inputs: ['nucleus', 'helium'], output: 'alpha_particle' },
+  { inputs: ['helium', 'strong_force'], output: 'alpha_particle' },
 
   // Nuclear Fusion
-  ['hydrogen', 'energy', 'nuclear_fusion'],
-  ['helium', 'energy', 'nuclear_fusion'],
-  ['deuterium', 'energy', 'nuclear_fusion'],
+  { inputs: ['hydrogen', 'energy'], output: 'nuclear_fusion' },
+  { inputs: ['helium', 'energy'], output: 'nuclear_fusion' },
+  { inputs: ['deuterium', 'energy'], output: 'nuclear_fusion' },
 
-  // Nuclear Fission
-  ['iron', 'neutron', 'nuclear_fission'],
-  ['nucleus', 'neutron', 'nuclear_fission'],
+  // Nuclear Fission (uranium + neutron is the correct reaction)
+  { inputs: ['uranium', 'neutron'], output: 'nuclear_fission' },
+  { inputs: ['nucleus', 'neutron'], output: 'nuclear_fission' },
 
   // Radioactivity
-  ['nucleus', 'energy', 'radioactivity'],
-  ['beta_decay', 'alpha_particle', 'radioactivity'],
+  { inputs: ['nucleus', 'energy'], output: 'radioactivity' },
+  { inputs: ['beta_decay', 'alpha_particle'], output: 'radioactivity' },
+  { inputs: ['uranium', 'energy'], output: 'radioactivity' },
 
   // Isotope
-  ['deuterium', 'hydrogen', 'isotope'],
-  ['nucleus', 'alpha_particle', 'isotope'],
+  { inputs: ['deuterium', 'hydrogen'], output: 'isotope' },
+  { inputs: ['nucleus', 'alpha_particle'], output: 'isotope' },
 
   // Electron Shell
-  ['electron', 'nucleus', 'electron_shell'],
-  ['electron', 'hydrogen', 'electron_shell'],
+  { inputs: ['electron', 'nucleus'], output: 'electron_shell' },
+  { inputs: ['electron', 'hydrogen'], output: 'electron_shell' },
 
   // Spectral Lines
-  ['electron_shell', 'photon', 'spectral_line'],
-  ['photon_emission', 'hydrogen', 'spectral_line'],
+  { inputs: ['electron_shell', 'photon'], output: 'spectral_line' },
+  { inputs: ['photon_emission', 'hydrogen'], output: 'spectral_line' },
 
   // Photon Emission
-  ['electron_shell', 'energy', 'photon_emission'],
-  ['electron_shell', 'photon', 'photon_emission'],
+  { inputs: ['electron_shell', 'energy'], output: 'photon_emission' },
+  { inputs: ['electron_shell', 'photon'], output: 'photon_emission' },
 
   // Chemical Bond
-  ['electron', 'electron', 'chemical_bond'],
-  ['electron', 'hydrogen', 'chemical_bond'],
+  { inputs: ['electron', 'electron'], output: 'chemical_bond' },
+  { inputs: ['electron', 'hydrogen'], output: 'chemical_bond' },
 
   // Water
-  ['hydrogen', 'oxygen', 'water'],
-  ['chemical_bond', 'oxygen', 'water'],
+  { inputs: ['hydrogen', 'oxygen'], output: 'water' },
+  { inputs: ['chemical_bond', 'oxygen'], output: 'water' },
 
   // Gravity
-  ['mass', 'mass', 'gravity'],
-  ['iron', 'iron', 'gravity'],
+  { inputs: ['mass', 'mass'], output: 'gravity' },
+  { inputs: ['iron', 'iron'], output: 'gravity' },
 
-  // Mass
-  ['higgs_boson', 'electron', 'mass'],
-  ['higgs_boson', 'proton', 'mass'],
-  ['strong_force', 'gluon', 'mass'],
+  // Mass (Higgs mechanism gives mass to particles)
+  { inputs: ['higgs_boson', 'electron'], output: 'mass' },
+  { inputs: ['higgs_boson', 'proton'], output: 'mass' },
+  { inputs: ['strong_force', 'gluon'], output: 'mass' },
 
   // ================================================================
   // ERA 4: QUANTUM PHENOMENA
   // ================================================================
 
   // Double Slit Experiment
-  ['photon', 'energy_barrier', 'double_slit'],
-  ['electron', 'energy_barrier', 'double_slit'],
-  ['wave_particle_duality', 'photon', 'double_slit'],
+  { inputs: ['photon', 'energy_barrier'], output: 'double_slit' },
+  { inputs: ['electron', 'energy_barrier'], output: 'double_slit' },
+  { inputs: ['wave_particle_duality', 'photon'], output: 'double_slit' },
 
   // Wave-Particle Duality
-  ['double_slit', 'measurement', 'wave_particle_duality'],
-  ['photon', 'momentum', 'wave_particle_duality'],
-  ['electron', 'wave_function', 'wave_particle_duality'],
+  { inputs: ['double_slit', 'measurement'], output: 'wave_particle_duality' },
+  { inputs: ['photon', 'momentum'], output: 'wave_particle_duality' },
+  { inputs: ['electron', 'wave_function'], output: 'wave_particle_duality' },
 
   // Superposition
-  ['wave_function', 'double_slit', 'superposition'],
-  ['electron', 'double_slit', 'superposition'],
+  { inputs: ['wave_function', 'double_slit'], output: 'superposition' },
+  { inputs: ['electron', 'double_slit'], output: 'superposition' },
 
   // Measurement
-  ['superposition', 'photon', 'measurement'],
-  ['wave_function', 'photon', 'measurement'],
-  ['double_slit', 'photon', 'measurement'],
+  { inputs: ['superposition', 'photon'], output: 'measurement' },
+  { inputs: ['wave_function', 'photon'], output: 'measurement' },
+  { inputs: ['double_slit', 'photon'], output: 'measurement' },
 
   // Entanglement
-  ['superposition', 'superposition', 'entanglement'],
-  ['measurement', 'superposition', 'entanglement'],
-  ['quantum_spin', 'quantum_spin', 'entanglement'],
+  { inputs: ['superposition', 'superposition'], output: 'entanglement' },
+  { inputs: ['measurement', 'superposition'], output: 'entanglement' },
+  { inputs: ['quantum_spin', 'quantum_spin'], output: 'entanglement' },
 
   // Energy Barrier
-  ['electromagnetic_force', 'nucleus', 'energy_barrier'],
-  ['energy', 'strong_force', 'energy_barrier'],
+  { inputs: ['electromagnetic_force', 'nucleus'], output: 'energy_barrier' },
+  { inputs: ['energy', 'strong_force'], output: 'energy_barrier' },
 
   // Quantum Tunneling
-  ['wave_function', 'energy_barrier', 'quantum_tunneling'],
-  ['alpha_particle', 'energy_barrier', 'quantum_tunneling'],
-  ['probability_cloud', 'energy_barrier', 'quantum_tunneling'],
+  { inputs: ['wave_function', 'energy_barrier'], output: 'quantum_tunneling' },
+  { inputs: ['alpha_particle', 'energy_barrier'], output: 'quantum_tunneling' },
+  { inputs: ['probability_cloud', 'energy_barrier'], output: 'quantum_tunneling' },
 
   // Momentum
-  ['mass', 'photon', 'momentum'],
-  ['photon', 'wave_function', 'momentum'],
+  { inputs: ['mass', 'photon'], output: 'momentum' },
+  { inputs: ['photon', 'wave_function'], output: 'momentum' },
 
   // Position
-  ['electron', 'measurement', 'position'],
-  ['wave_function', 'probability_cloud', 'position'],
+  { inputs: ['electron', 'measurement'], output: 'position' },
+  { inputs: ['wave_function', 'probability_cloud'], output: 'position' },
 
   // Uncertainty Principle
-  ['momentum', 'position', 'uncertainty_principle'],
-  ['measurement', 'momentum', 'uncertainty_principle'],
+  { inputs: ['momentum', 'position'], output: 'uncertainty_principle' },
+  { inputs: ['measurement', 'momentum'], output: 'uncertainty_principle' },
 
-  // Schrödinger's Cat
-  ['superposition', 'radioactivity', 'schrodinger_cat'],
-  ['decoherence', 'superposition', 'schrodinger_cat'],
+  // Schrodinger's Cat
+  { inputs: ['superposition', 'radioactivity'], output: 'schrodinger_cat' },
+  { inputs: ['decoherence', 'superposition'], output: 'schrodinger_cat' },
 
   // Decoherence
-  ['superposition', 'energy', 'decoherence'],
-  ['schrodinger_cat', 'measurement', 'decoherence'],
+  { inputs: ['superposition', 'energy'], output: 'decoherence' },
+  { inputs: ['schrodinger_cat', 'measurement'], output: 'decoherence' },
 
   // Photoelectric Effect
-  ['photon', 'iron', 'photoelectric_effect'],
-  ['electromagnetic_force', 'iron', 'photoelectric_effect'],
+  { inputs: ['photon', 'iron'], output: 'photoelectric_effect' },
+  { inputs: ['electromagnetic_force', 'iron'], output: 'photoelectric_effect' },
 
   // Blackbody Radiation
-  ['photon', 'energy', 'blackbody_radiation'],
-  ['energy', 'iron', 'blackbody_radiation'],
+  { inputs: ['photon', 'energy'], output: 'blackbody_radiation' },
+  { inputs: ['energy', 'iron'], output: 'blackbody_radiation' },
 
   // Compton Scattering
-  ['photon', 'electron', 'compton_scattering'],
-  ['electromagnetic_force', 'electron', 'compton_scattering'],
+  { inputs: ['photon', 'electron'], output: 'compton_scattering' },
+  { inputs: ['electromagnetic_force', 'electron'], output: 'compton_scattering' },
 
   // Quantum Spin
-  ['electron', 'momentum', 'quantum_spin'],
-  ['electron', 'quantum_numbers', 'quantum_spin'],
+  { inputs: ['electron', 'momentum'], output: 'quantum_spin' },
+  { inputs: ['electron', 'quantum_numbers'], output: 'quantum_spin' },
 
   // Pauli Exclusion Principle
-  ['quantum_spin', 'electron_shell', 'pauli_exclusion'],
-  ['quantum_spin', 'quantum_spin', 'pauli_exclusion'],
-  ['electron_pair', 'quantum_numbers', 'pauli_exclusion'],
+  { inputs: ['quantum_spin', 'electron_shell'], output: 'pauli_exclusion' },
+  { inputs: ['quantum_spin', 'quantum_spin'], output: 'pauli_exclusion' },
+  { inputs: ['electron_pair', 'quantum_numbers'], output: 'pauli_exclusion' },
 
   // Quantum Numbers
-  ['electron_shell', 'quantum_spin', 'quantum_numbers'],
-  ['electron_shell', 'momentum', 'quantum_numbers'],
+  { inputs: ['electron_shell', 'quantum_spin'], output: 'quantum_numbers' },
+  { inputs: ['electron_shell', 'momentum'], output: 'quantum_numbers' },
 
   // Wave Function
-  ['probability_cloud', 'energy', 'wave_function'],
-  ['electron', 'superposition', 'wave_function'],
-  ['electron_shell', 'momentum', 'wave_function'],
+  { inputs: ['probability_cloud', 'energy'], output: 'wave_function' },
+  { inputs: ['electron', 'superposition'], output: 'wave_function' },
+  { inputs: ['electron_shell', 'momentum'], output: 'wave_function' },
 
   // Probability Cloud
-  ['electron', 'electron_shell', 'probability_cloud'],
-  ['electron_shell', 'uncertainty_principle', 'probability_cloud'],
+  { inputs: ['electron', 'electron_shell'], output: 'probability_cloud' },
+  { inputs: ['electron_shell', 'uncertainty_principle'], output: 'probability_cloud' },
 
   // Quantum Leap
-  ['electron_shell', 'photon_emission', 'quantum_leap'],
-  ['photon', 'electron_shell', 'quantum_leap'],
+  { inputs: ['electron_shell', 'photon_emission'], output: 'quantum_leap' },
+  { inputs: ['photon', 'electron_shell'], output: 'quantum_leap' },
 
   // Zero-Point Energy
-  ['uncertainty_principle', 'energy', 'zero_point_energy'],
-  ['absolute_zero', 'energy', 'zero_point_energy'],
+  { inputs: ['uncertainty_principle', 'energy'], output: 'zero_point_energy' },
+  { inputs: ['absolute_zero', 'energy'], output: 'zero_point_energy' },
 
   // Quantum Fluctuation
-  ['zero_point_energy', 'energy', 'quantum_fluctuation'],
-  ['uncertainty_principle', 'photon', 'quantum_fluctuation'],
+  { inputs: ['zero_point_energy', 'energy'], output: 'quantum_fluctuation' },
+  { inputs: ['uncertainty_principle', 'photon'], output: 'quantum_fluctuation' },
 
   // Stimulated Emission
-  ['photon', 'photon_emission', 'stimulated_emission'],
-  ['photon_emission', 'energy', 'stimulated_emission'],
+  { inputs: ['photon', 'photon_emission'], output: 'stimulated_emission' },
+  { inputs: ['photon_emission', 'energy'], output: 'stimulated_emission' },
 
   // ================================================================
   // ERA 5: ADVANCED & APPLIED
   // ================================================================
 
   // Qubit
-  ['superposition', 'measurement', 'qubit'],
-  ['superposition', 'electron_shell', 'qubit'],
+  { inputs: ['superposition', 'measurement'], output: 'qubit' },
+  { inputs: ['superposition', 'electron_shell'], output: 'qubit' },
 
   // Logic Gate
-  ['qubit', 'qubit', 'logic_gate'],
-  ['qubit', 'measurement', 'logic_gate'],
+  { inputs: ['qubit', 'qubit'], output: 'logic_gate' },
+  { inputs: ['qubit', 'measurement'], output: 'logic_gate' },
 
   // Quantum Computer
-  ['qubit', 'logic_gate', 'quantum_computer'],
-  ['qubit', 'entanglement', 'quantum_computer'],
+  { inputs: ['qubit', 'logic_gate'], output: 'quantum_computer' },
+  { inputs: ['qubit', 'entanglement'], output: 'quantum_computer' },
 
   // Quantum Cryptography
-  ['entanglement', 'photon', 'quantum_cryptography'],
-  ['qubit', 'entanglement', 'quantum_cryptography'],
+  { inputs: ['entanglement', 'photon'], output: 'quantum_cryptography' },
+  { inputs: ['qubit', 'entanglement'], output: 'quantum_cryptography' },
 
   // Quantum Teleportation
-  ['entanglement', 'measurement', 'quantum_teleportation'],
-  ['entanglement', 'qubit', 'quantum_teleportation'],
+  { inputs: ['entanglement', 'measurement'], output: 'quantum_teleportation' },
+  { inputs: ['entanglement', 'qubit'], output: 'quantum_teleportation' },
 
   // Bose-Einstein Condensate
-  ['absolute_zero', 'helium', 'bose_einstein_condensate'],
-  ['absolute_zero', 'hydrogen', 'bose_einstein_condensate'],
+  { inputs: ['absolute_zero', 'helium'], output: 'bose_einstein_condensate' },
+  { inputs: ['absolute_zero', 'hydrogen'], output: 'bose_einstein_condensate' },
 
   // Absolute Zero
-  ['energy', 'zero_point_energy', 'absolute_zero'],
-  ['decoherence', 'energy', 'absolute_zero'],
+  { inputs: ['energy', 'zero_point_energy'], output: 'absolute_zero' },
+  { inputs: ['decoherence', 'energy'], output: 'absolute_zero' },
 
   // Cooper Pair
-  ['electron', 'absolute_zero', 'cooper_pair'],
-  ['electron_pair', 'absolute_zero', 'cooper_pair'],
+  { inputs: ['electron', 'absolute_zero'], output: 'cooper_pair' },
+  { inputs: ['electron_pair', 'absolute_zero'], output: 'cooper_pair' },
 
   // Electron Pair
-  ['electron', 'chemical_bond', 'electron_pair'],
-  ['quantum_spin', 'electron', 'electron_pair'],
+  { inputs: ['electron', 'chemical_bond'], output: 'electron_pair' },
+  { inputs: ['quantum_spin', 'electron'], output: 'electron_pair' },
 
   // Superconductor
-  ['cooper_pair', 'iron', 'superconductor'],
-  ['cooper_pair', 'energy', 'superconductor'],
-  ['absolute_zero', 'iron', 'superconductor'],
+  { inputs: ['cooper_pair', 'iron'], output: 'superconductor' },
+  { inputs: ['cooper_pair', 'energy'], output: 'superconductor' },
+  { inputs: ['absolute_zero', 'iron'], output: 'superconductor' },
 
   // Laser
-  ['stimulated_emission', 'photon', 'laser'],
-  ['stimulated_emission', 'energy', 'laser'],
-  ['photon_emission', 'photon_emission', 'laser'],
+  { inputs: ['stimulated_emission', 'photon'], output: 'laser' },
+  { inputs: ['stimulated_emission', 'energy'], output: 'laser' },
+  { inputs: ['photon_emission', 'photon_emission'], output: 'laser' },
 
   // Semiconductor
-  ['band_theory', 'carbon', 'semiconductor'],
-  ['quantum_tunneling', 'chemical_bond', 'semiconductor'],
-  ['band_theory', 'electron', 'semiconductor'],
+  { inputs: ['band_theory', 'carbon'], output: 'semiconductor' },
+  { inputs: ['quantum_tunneling', 'chemical_bond'], output: 'semiconductor' },
+  { inputs: ['band_theory', 'electron'], output: 'semiconductor' },
 
   // Band Theory
-  ['pauli_exclusion', 'chemical_bond', 'band_theory'],
-  ['quantum_numbers', 'chemical_bond', 'band_theory'],
-  ['electron_shell', 'pauli_exclusion', 'band_theory'],
+  { inputs: ['pauli_exclusion', 'chemical_bond'], output: 'band_theory' },
+  { inputs: ['quantum_numbers', 'chemical_bond'], output: 'band_theory' },
+  { inputs: ['electron_shell', 'pauli_exclusion'], output: 'band_theory' },
 
   // Transistor
-  ['semiconductor', 'electron', 'transistor'],
-  ['semiconductor', 'quantum_tunneling', 'transistor'],
+  { inputs: ['semiconductor', 'electron'], output: 'transistor' },
+  { inputs: ['semiconductor', 'quantum_tunneling'], output: 'transistor' },
 
   // LED
-  ['semiconductor', 'photon_emission', 'led'],
-  ['semiconductor', 'photon', 'led'],
+  { inputs: ['semiconductor', 'photon_emission'], output: 'led' },
+  { inputs: ['semiconductor', 'photon'], output: 'led' },
 
   // MRI
-  ['quantum_spin', 'hydrogen', 'mri'],
-  ['quantum_spin', 'electromagnetic_force', 'mri'],
+  { inputs: ['quantum_spin', 'hydrogen'], output: 'mri' },
+  { inputs: ['quantum_spin', 'electromagnetic_force'], output: 'mri' },
 
   // Quantum Field Theory
-  ['wave_function', 'electromagnetic_force', 'quantum_field_theory'],
-  ['quantum_fluctuation', 'electromagnetic_force', 'quantum_field_theory'],
+  { inputs: ['wave_function', 'electromagnetic_force'], output: 'quantum_field_theory' },
+  { inputs: ['quantum_fluctuation', 'electromagnetic_force'], output: 'quantum_field_theory' },
 
   // Standard Model
-  ['strong_force', 'electromagnetic_force', 'standard_model'],
-  ['quantum_field_theory', 'higgs_boson', 'standard_model'],
-  ['w_boson', 'strong_force', 'standard_model'],
+  { inputs: ['strong_force', 'electromagnetic_force'], output: 'standard_model' },
+  { inputs: ['quantum_field_theory', 'higgs_boson'], output: 'standard_model' },
+  { inputs: ['w_boson', 'strong_force'], output: 'standard_model' },
 
   // Black Hole
-  ['gravity', 'iron', 'black_hole'],
-  ['gravity', 'nuclear_fusion', 'black_hole'],
+  { inputs: ['gravity', 'iron'], output: 'black_hole' },
+  { inputs: ['gravity', 'nuclear_fusion'], output: 'black_hole' },
 
   // Hawking Radiation
-  ['black_hole', 'quantum_fluctuation', 'hawking_radiation'],
-  ['black_hole', 'entanglement', 'hawking_radiation'],
+  { inputs: ['black_hole', 'quantum_fluctuation'], output: 'hawking_radiation' },
+  { inputs: ['black_hole', 'entanglement'], output: 'hawking_radiation' },
 
   // Quantum Gravity
-  ['gravity', 'quantum_field_theory', 'quantum_gravity'],
-  ['gravity', 'superposition', 'quantum_gravity'],
-  ['black_hole', 'quantum_field_theory', 'quantum_gravity'],
+  { inputs: ['gravity', 'quantum_field_theory'], output: 'quantum_gravity' },
+  { inputs: ['gravity', 'superposition'], output: 'quantum_gravity' },
+  { inputs: ['black_hole', 'quantum_field_theory'], output: 'quantum_gravity' },
 
   // Nuclear Reactor
-  ['nuclear_fission', 'energy', 'nuclear_reactor'],
-  ['nuclear_fission', 'water', 'nuclear_reactor'],
+  { inputs: ['nuclear_fission', 'energy'], output: 'nuclear_reactor' },
+  { inputs: ['nuclear_fission', 'water'], output: 'nuclear_reactor' },
+  { inputs: ['uranium', 'nuclear_fission'], output: 'nuclear_reactor' },
 
   // Solar Cell
-  ['photoelectric_effect', 'semiconductor', 'solar_cell'],
-  ['photoelectric_effect', 'energy', 'solar_cell'],
+  { inputs: ['photoelectric_effect', 'semiconductor'], output: 'solar_cell' },
+  { inputs: ['photoelectric_effect', 'energy'], output: 'solar_cell' },
 
   // Quantum Dot
-  ['semiconductor', 'quantum_numbers', 'quantum_dot'],
-  ['semiconductor', 'electron_shell', 'quantum_dot'],
+  { inputs: ['semiconductor', 'quantum_numbers'], output: 'quantum_dot' },
+  { inputs: ['semiconductor', 'electron_shell'], output: 'quantum_dot' },
 
   // ================================================================
   // HIDDEN / EASTER EGGS
   // ================================================================
 
-  ['higgs_boson', 'energy', 'god_particle'],
-  ['higgs_boson', 'mass', 'god_particle'],
+  { inputs: ['higgs_boson', 'energy'], output: 'god_particle' },
+  { inputs: ['higgs_boson', 'mass'], output: 'god_particle' },
 
-  ['entanglement', 'gravity', 'spooky_action'],
-  ['entanglement', 'quantum_teleportation', 'spooky_action'],
+  { inputs: ['entanglement', 'gravity'], output: 'spooky_action' },
+  { inputs: ['entanglement', 'quantum_teleportation'], output: 'spooky_action' },
 
-  ['superposition', 'decoherence', 'many_worlds'],
-  ['schrodinger_cat', 'superposition', 'many_worlds'],
+  { inputs: ['superposition', 'decoherence'], output: 'many_worlds' },
+  { inputs: ['schrodinger_cat', 'superposition'], output: 'many_worlds' },
 
-  ['double_slit', 'entanglement', 'quantum_eraser'],
-  ['measurement', 'entanglement', 'quantum_eraser'],
+  { inputs: ['double_slit', 'entanglement'], output: 'quantum_eraser' },
+  { inputs: ['measurement', 'entanglement'], output: 'quantum_eraser' },
 
-  ['wave_function', 'energy', 'schrodinger_equation'],
-  ['wave_function', 'momentum', 'schrodinger_equation'],
+  { inputs: ['wave_function', 'energy'], output: 'schrodinger_equation' },
+  { inputs: ['wave_function', 'momentum'], output: 'schrodinger_equation' },
 
-  ['entanglement', 'uncertainty_principle', 'epr_paradox'],
-  ['entanglement', 'position', 'epr_paradox'],
+  { inputs: ['entanglement', 'uncertainty_principle'], output: 'epr_paradox' },
+  { inputs: ['entanglement', 'position'], output: 'epr_paradox' },
 
-  ['blackbody_radiation', 'energy', 'planck_constant'],
-  ['photoelectric_effect', 'energy', 'planck_constant'],
+  { inputs: ['blackbody_radiation', 'energy'], output: 'planck_constant' },
+  { inputs: ['photoelectric_effect', 'energy'], output: 'planck_constant' },
 
-  ['schrodinger_cat', 'qubit', 'cat_state'],
-  ['schrodinger_cat', 'entanglement', 'cat_state'],
+  { inputs: ['schrodinger_cat', 'qubit'], output: 'cat_state' },
+  { inputs: ['schrodinger_cat', 'entanglement'], output: 'cat_state' },
 ];
 
 // Build a lookup map for fast recipe checking
-// Key: sorted pair "id1|id2", Value: result id
+// Key: sorted inputs joined by "|", Value: result id
 const RECIPE_MAP = new Map();
 // Also track all recipes that produce each element (for hint system)
 const RECIPES_BY_OUTPUT = {};
 // Track all recipes for each input (for discovery hints)
 const RECIPES_BY_INPUT = {};
 
-for (const [input1, input2, output] of RECIPES) {
-  const key = [input1, input2].sort().join('|');
+for (const recipe of RECIPES) {
+  const key = [...recipe.inputs].sort().join('|');
   // First recipe wins if duplicate keys
   if (!RECIPE_MAP.has(key)) {
-    RECIPE_MAP.set(key, output);
+    RECIPE_MAP.set(key, recipe.output);
   }
 
   // Track by output
-  if (!RECIPES_BY_OUTPUT[output]) RECIPES_BY_OUTPUT[output] = [];
-  RECIPES_BY_OUTPUT[output].push([input1, input2]);
+  if (!RECIPES_BY_OUTPUT[recipe.output]) RECIPES_BY_OUTPUT[recipe.output] = [];
+  RECIPES_BY_OUTPUT[recipe.output].push(recipe.inputs);
 
   // Track by input
-  if (!RECIPES_BY_INPUT[input1]) RECIPES_BY_INPUT[input1] = [];
-  RECIPES_BY_INPUT[input1].push({ partner: input2, result: output });
-  if (!RECIPES_BY_INPUT[input2]) RECIPES_BY_INPUT[input2] = [];
-  RECIPES_BY_INPUT[input2].push({ partner: input1, result: output });
+  for (const input of recipe.inputs) {
+    if (!RECIPES_BY_INPUT[input]) RECIPES_BY_INPUT[input] = [];
+    // For hints, list all other inputs as partners
+    const partners = recipe.inputs.filter(i => i !== input);
+    RECIPES_BY_INPUT[input].push({ partners, result: recipe.output });
+  }
 }
 
 /**
- * Try to combine two elements. Returns the result element ID or null.
+ * Try to combine elements. Accepts an array of 2 or 3 element IDs.
+ * Returns the result element ID or null.
  */
-function tryCombine(id1, id2) {
-  const key = [id1, id2].sort().join('|');
+function tryCombine(inputs) {
+  if (!Array.isArray(inputs)) inputs = [...arguments];
+  const key = [...inputs].sort().join('|');
   return RECIPE_MAP.get(key) || null;
 }
 
@@ -467,7 +467,7 @@ function getRecipesFor(elementId) {
 
 /**
  * Get a hint for what an element can combine with.
- * Returns an array of { partner, result } objects.
+ * Returns an array of { partners, result } objects.
  */
 function getHintsFor(elementId) {
   return RECIPES_BY_INPUT[elementId] || [];
