@@ -2,8 +2,9 @@ name: Deploy All Versions to Pages
 
 on:
   push:
-    branches: [main]
-  # Run manually from Actions tab after pushing a pages-* branch
+    branches:
+      - main
+      - 'pages-*'
   workflow_dispatch:
 
 permissions:
