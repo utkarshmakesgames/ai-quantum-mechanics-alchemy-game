@@ -7,19 +7,24 @@ const Timeline = (function() {
   let appState = null;
   let currentEra = null;
   let currentEraIndex = 0;
-  let dialValues = {};
+  let dialValues = {};       // stores log10 exponents, e.g. { temperature: 12.5 }
   let discoveredInEra = [];
   let choiceIndex = 0;
   let hintTimer = null;
+  let hintIndex = 0;
   let eraStartTime = 0;
+  let navBound = false;
 
   function init(state) {
     appState = state;
     currentEraIndex = state.storyProgress.currentEra || 0;
 
-    // Setup era navigation
-    document.getElementById('btn-prev-era').addEventListener('click', prevEra);
-    document.getElementById('btn-next-era').addEventListener('click', nextEra);
+    // Only bind nav once to avoid stacking listeners
+    if (!navBound) {
+      document.getElementById('btn-prev-era').addEventListener('click', prevEra);
+      document.getElementById('btn-next-era').addEventListener('click', nextEra);
+      navBound = true;
+    }
 
     renderEraMap();
     loadEra(currentEraIndex);
@@ -65,18 +70,23 @@ const Timeline = (function() {
     currentEra = ERAS[index];
     discoveredInEra = [];
     choiceIndex = 0;
+    hintIndex = 0;
     eraStartTime = Date.now();
     clearHintTimer();
 
-    // Update header
+    // Update header — eras.js uses `time` and `intro`
     document.getElementById('era-title').textContent = `Era ${index + 1}: ${currentEra.name}`;
-    document.getElementById('era-time').textContent = currentEra.timeAfterBang;
-    document.getElementById('era-description').textContent = currentEra.description;
+    document.getElementById('era-time').textContent = currentEra.time || '';
+    document.getElementById('era-description').textContent = currentEra.intro || '';
 
     // Update navigation
     document.getElementById('btn-prev-era').disabled = index === 0;
     const isLocked = index + 1 > appState.storyProgress.currentEra;
     document.getElementById('btn-next-era').disabled = index >= ERAS.length - 1 || isLocked;
+
+    // Hide hint
+    const hintEl = document.getElementById('dial-hint');
+    if (hintEl) hintEl.style.display = 'none';
 
     // Show correct panel
     if (currentEra.type === 'dials') {
@@ -98,41 +108,46 @@ const Timeline = (function() {
     container.innerHTML = '';
     dialValues = {};
 
-    for (const dial of currentEra.dials) {
-      dialValues[dial.id] = dial.default;
+    // eras.js dials is an object: { temperature: { label, unit, min, max, ... }, ... }
+    // min/max are log10 exponents (e.g. min:10, max:15 means 10^10 to 10^15)
+    for (const [dialId, dial] of Object.entries(currentEra.dials)) {
+      const defaultLog = (dial.min + dial.max) / 2; // midpoint of log range
+      dialValues[dialId] = defaultLog;
 
       const wrapper = document.createElement('div');
       wrapper.className = 'dial-wrapper';
 
       const label = document.createElement('label');
       label.className = 'dial-label';
-      label.textContent = dial.name;
+      label.textContent = dial.label || dialId;
 
       const valueDisplay = document.createElement('span');
       valueDisplay.className = 'dial-value';
-      valueDisplay.id = `dial-val-${dial.id}`;
-      valueDisplay.textContent = formatValue(dial.default, dial.unit);
+      valueDisplay.id = `dial-val-${dialId}`;
+      valueDisplay.textContent = formatLogValue(defaultLog, dial.unit);
 
       const slider = document.createElement('input');
       slider.type = 'range';
       slider.className = 'dial-slider';
-      slider.id = `dial-${dial.id}`;
+      slider.id = `dial-${dialId}`;
       slider.min = 0;
       slider.max = 1000;
-      // Convert default to slider position (log scale)
-      slider.value = valueToSlider(dial.default, dial.min, dial.max);
+      slider.value = 500; // midpoint
 
+      const capturedId = dialId;
+      const capturedDial = dial;
       slider.addEventListener('input', () => {
-        const val = sliderToValue(parseInt(slider.value), dial.min, dial.max);
-        dialValues[dial.id] = val;
-        valueDisplay.textContent = formatValue(val, dial.unit);
+        const t = parseInt(slider.value) / 1000;
+        const logVal = capturedDial.min + t * (capturedDial.max - capturedDial.min);
+        dialValues[capturedId] = logVal;
+        valueDisplay.textContent = formatLogValue(logVal, capturedDial.unit);
         Audio.play('dial-tick');
         onDialChange();
       });
 
       const range = document.createElement('div');
       range.className = 'dial-range';
-      range.innerHTML = `<span>${formatValue(dial.min, dial.unit)}</span><span>${formatValue(dial.max, dial.unit)}</span>`;
+      range.innerHTML = `<span>${formatLogValue(dial.min, dial.unit)}</span><span>${formatLogValue(dial.max, dial.unit)}</span>`;
 
       wrapper.appendChild(label);
       wrapper.appendChild(valueDisplay);
@@ -159,41 +174,75 @@ const Timeline = (function() {
   function updateParticleConfig() {
     if (!currentEra || currentEra.type !== 'dials') return;
 
-    const particleTypes = currentEra.particleTypes || ['quark'];
-    // Add discovered particle types
-    for (const d of discoveredInEra) {
-      const el = ELEMENTS[d];
-      if (el && !particleTypes.includes(d)) {
-        particleTypes.push(d);
+    const particleTypes = currentEra.particleTypes ? [...currentEra.particleTypes] : ['quark'];
+    // Add discovered particle types — map discovery IDs to element IDs
+    if (currentEra.discoveries) {
+      for (const disc of currentEra.discoveries) {
+        if (discoveredInEra.includes(disc.id)) {
+          const elemId = disc.element || disc.id;
+          if (ELEMENTS[elemId] && !particleTypes.includes(elemId)) {
+            particleTypes.push(elemId);
+          }
+        }
       }
     }
 
+    // Convert log10 values to actual values for the particle system
     Particles.setConfig({
-      temperature: dialValues.temperature || 1e10,
-      density: dialValues.density || 1e30,
-      energy: dialValues.energy || 1e6,
+      temperature: Math.pow(10, dialValues.temperature || 10),
+      density: Math.pow(10, dialValues.density || 30),
+      energy: Math.pow(10, dialValues.energy || 6),
       particleTypes
     });
   }
 
   function checkDialThresholds() {
-    if (!currentEra.thresholds) return;
+    // eras.js uses `discoveries` array, each with conditions as { dialId: { min?, max? } }
+    if (!currentEra.discoveries) return;
 
-    for (const threshold of currentEra.thresholds) {
-      if (discoveredInEra.includes(threshold.produces)) continue;
+    for (const discovery of currentEra.discoveries) {
+      // Use discovery.id for era-local tracking (handles He-3/He-4 both mapping to 'helium')
+      if (discoveredInEra.includes(discovery.id)) continue;
 
-      // Check if all dial conditions are met
+      // Check if all dial conditions are met (values are in log10 scale)
       let met = true;
-      for (const [dialId, range] of Object.entries(threshold.conditions)) {
+      for (const [dialId, cond] of Object.entries(discovery.conditions)) {
         const val = dialValues[dialId];
-        if (val < range[0] || val > range[1]) {
-          met = false;
-          break;
-        }
+        if (val === undefined) { met = false; break; }
+        if (cond.min !== undefined && val < cond.min) { met = false; break; }
+        if (cond.max !== undefined && val > cond.max) { met = false; break; }
       }
 
       if (met) {
-        triggerDiscovery(threshold.produces, threshold.explanation);
+        triggerDialDiscovery(discovery);
+      }
+    }
+  }
+
+  function triggerDialDiscovery(discovery) {
+    if (discoveredInEra.includes(discovery.id)) return;
+    discoveredInEra.push(discovery.id);
+
+    // Register the element globally (for sandbox mode)
+    const elementId = discovery.element || discovery.id;
+    App.addDiscovery(elementId);
+    App.addScore(50);
+
+    Audio.play('discovery');
+    Particles.flash('#00e5ff');
+    Particles.burst(elementId, 20);
+
+    renderDiscoveryList();
+    updateParticleConfig();
+
+    // Show popup with discovery name (may differ from element name, e.g. "Helium-3")
+    showDiscoveryPopup(elementId, discovery.explanation, discovery.name);
+
+    // Check if all discoveries in this era are found
+    if (currentEra.discoveries) {
+      const allFound = currentEra.discoveries.every(d => discoveredInEra.includes(d.id));
+      if (allFound) {
+        setTimeout(() => markEraComplete(), 1500);
       }
     }
   }
@@ -209,8 +258,10 @@ const Timeline = (function() {
 
   function renderCurrentChoice() {
     const panel = document.getElementById('choice-content');
-    if (!currentEra.choices || choiceIndex >= currentEra.choices.length) {
-      // All choices answered — era complete
+    // eras.js uses `questions` array
+    const questions = currentEra.questions || [];
+    if (choiceIndex >= questions.length) {
+      // All questions answered — era complete
       panel.innerHTML = `
         <div class="choice-complete">
           <h3>Era Complete!</h3>
@@ -222,19 +273,20 @@ const Timeline = (function() {
       return;
     }
 
-    const choice = currentEra.choices[choiceIndex];
+    const q = questions[choiceIndex];
     const feedbackDiv = document.getElementById('choice-feedback');
     feedbackDiv.style.display = 'none';
     feedbackDiv.className = 'choice-feedback';
 
+    // eras.js questions have: text, choices, correct, explanations, element
     let html = `
-      <div class="choice-context">${choice.context}</div>
-      <div class="choice-question">${choice.question}</div>
+      <div class="choice-context">${currentEra.intro || ''}</div>
+      <div class="choice-question">${q.text}</div>
       <div class="choice-options">
     `;
 
-    for (let i = 0; i < choice.options.length; i++) {
-      html += `<button class="choice-btn" data-index="${i}">${choice.options[i]}</button>`;
+    for (let i = 0; i < q.choices.length; i++) {
+      html += `<button class="choice-btn" data-index="${i}">${q.choices[i]}</button>`;
     }
     html += '</div>';
     panel.innerHTML = html;
@@ -243,19 +295,19 @@ const Timeline = (function() {
     panel.querySelectorAll('.choice-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         const idx = parseInt(btn.dataset.index);
-        handleChoiceAnswer(choice, idx, panel);
+        handleChoiceAnswer(q, idx, panel);
       });
     });
   }
 
-  function handleChoiceAnswer(choice, selectedIndex, panel) {
-    const correct = selectedIndex === choice.correct;
+  function handleChoiceAnswer(q, selectedIndex, panel) {
+    const correct = selectedIndex === q.correct;
     const feedbackDiv = document.getElementById('choice-feedback');
 
     // Disable all buttons
     panel.querySelectorAll('.choice-btn').forEach((btn, i) => {
       btn.disabled = true;
-      if (i === choice.correct) btn.classList.add('correct');
+      if (i === q.correct) btn.classList.add('correct');
       if (i === selectedIndex && !correct) btn.classList.add('wrong');
     });
 
@@ -264,21 +316,24 @@ const Timeline = (function() {
       feedbackDiv.className = 'choice-feedback correct';
       feedbackDiv.innerHTML = `
         <div class="feedback-icon">✓</div>
-        <div class="feedback-text">${choice.explanation}</div>
+        <div class="feedback-text">${q.explanations.correct}</div>
       `;
 
-      // Grant discovery
-      if (choice.produces) {
-        triggerDiscovery(choice.produces, null, false);
+      // Grant discovery if this question has an element
+      if (q.element) {
+        triggerDiscovery(q.element, null, false);
       }
 
       App.addScore(100);
     } else {
       Audio.play('wrong');
       feedbackDiv.className = 'choice-feedback wrong';
+      // eras.js wrong explanations are keyed by choice index
+      const wrongText = (q.explanations.wrong && q.explanations.wrong[selectedIndex])
+        || q.explanations.correct;
       feedbackDiv.innerHTML = `
         <div class="feedback-icon">✗</div>
-        <div class="feedback-text">${choice.wrongExplanation || choice.explanation}</div>
+        <div class="feedback-text">${wrongText}</div>
       `;
       App.addScore(25); // partial credit for trying
     }
@@ -296,7 +351,7 @@ const Timeline = (function() {
     feedbackDiv.appendChild(continueBtn);
   }
 
-  // === DISCOVERIES ===
+  // === DISCOVERIES (choice mode) ===
   function triggerDiscovery(elementId, explanation, showModal) {
     if (discoveredInEra.includes(elementId)) return;
     discoveredInEra.push(elementId);
@@ -316,27 +371,20 @@ const Timeline = (function() {
     if (showModal !== false) {
       showDiscoveryPopup(elementId, explanation);
     }
-
-    // Check if all discoveries in era are found
-    if (currentEra.thresholds) {
-      const allFound = currentEra.thresholds.every(t => discoveredInEra.includes(t.produces));
-      if (allFound) {
-        setTimeout(() => markEraComplete(), 1500);
-      }
-    }
   }
 
-  function showDiscoveryPopup(elementId, explanation) {
+  function showDiscoveryPopup(elementId, explanation, overrideName) {
     const el = ELEMENTS[elementId];
     if (!el) return;
 
     const popup = document.getElementById('discovery-popup');
     const journal = JOURNAL[elementId];
+    const displayName = overrideName || el.name;
 
     popup.innerHTML = `
       <div class="discovery-header">
         <span class="discovery-symbol" style="color:${el.color}">${el.symbol}</span>
-        <span class="discovery-name">${el.name}</span>
+        <span class="discovery-name">${displayName}</span>
       </div>
       <div class="discovery-explanation">${explanation || (journal && journal.text) || el.description || ''}</div>
       ${journal && journal.funFact ? `<div class="discovery-funfact">💡 ${journal.funFact}</div>` : ''}
@@ -352,21 +400,35 @@ const Timeline = (function() {
     const list = document.getElementById('era-discoveries');
     if (!list || !currentEra) return;
 
-    const allTargets = currentEra.thresholds
-      ? currentEra.thresholds.map(t => t.produces)
-      : (currentEra.choices || []).filter(c => c.produces).map(c => c.produces);
-
     list.innerHTML = '';
-    for (const id of allTargets) {
-      const found = discoveredInEra.includes(id);
-      const el = ELEMENTS[id];
-      const item = document.createElement('div');
-      item.className = 'discovery-item' + (found ? ' found' : '');
-      item.innerHTML = `
-        <span class="discovery-check">${found ? '☑' : '☐'}</span>
-        <span class="discovery-label" style="${found && el ? 'color:' + el.color : ''}">${found && el ? el.name : '???'}</span>
-      `;
-      list.appendChild(item);
+
+    if (currentEra.discoveries) {
+      // Dial eras — track by discovery.id, display discovery.name
+      for (const d of currentEra.discoveries) {
+        const found = discoveredInEra.includes(d.id);
+        const el = ELEMENTS[d.element || d.id];
+        const item = document.createElement('div');
+        item.className = 'discovery-item' + (found ? ' found' : '');
+        item.innerHTML = `
+          <span class="discovery-check">${found ? '☑' : '☐'}</span>
+          <span class="discovery-label" style="${found && el ? 'color:' + el.color : ''}">${found ? d.name : '???'}</span>
+        `;
+        list.appendChild(item);
+      }
+    } else if (currentEra.questions) {
+      // Choice eras — track by element ID
+      for (const q of currentEra.questions) {
+        if (!q.element) continue;
+        const found = discoveredInEra.includes(q.element);
+        const el = ELEMENTS[q.element];
+        const item = document.createElement('div');
+        item.className = 'discovery-item' + (found ? ' found' : '');
+        item.innerHTML = `
+          <span class="discovery-check">${found ? '☑' : '☐'}</span>
+          <span class="discovery-label" style="${found && el ? 'color:' + el.color : ''}">${found && el ? el.name : '???'}</span>
+        `;
+        list.appendChild(item);
+      }
     }
   }
 
@@ -393,14 +455,19 @@ const Timeline = (function() {
   }
 
   // === HINTS ===
+  // eras.js hints are era-level: [{ delay, text }, ...]
   function startHintTimer() {
     clearHintTimer();
-    hintTimer = setTimeout(showHint, 30000);
+    if (!currentEra.hints || !currentEra.hints.length) return;
+    const firstHint = currentEra.hints[0];
+    hintTimer = setTimeout(showHint, (firstHint.delay || 30) * 1000);
   }
 
   function resetHintTimer() {
     clearHintTimer();
-    hintTimer = setTimeout(showHint, 30000);
+    if (!currentEra.hints || !currentEra.hints.length) return;
+    const hint = currentEra.hints[Math.min(hintIndex, currentEra.hints.length - 1)];
+    hintTimer = setTimeout(showHint, (hint.delay || 30) * 1000);
   }
 
   function clearHintTimer() {
@@ -410,20 +477,30 @@ const Timeline = (function() {
 
   function showHint() {
     if (!currentEra || currentEra.type !== 'dials') return;
+    if (!currentEra.hints || !currentEra.hints.length) return;
 
-    // Find first undiscovered threshold and show its hint
-    const next = currentEra.thresholds.find(t => !discoveredInEra.includes(t.produces));
-    if (!next || !next.hint) return;
+    const hint = currentEra.hints[Math.min(hintIndex, currentEra.hints.length - 1)];
+    if (!hint) return;
 
     const hintEl = document.getElementById('dial-hint');
     if (hintEl) {
-      hintEl.textContent = next.hint;
+      hintEl.textContent = hint.text;
       hintEl.style.display = 'block';
       setTimeout(() => hintEl.style.display = 'none', 8000);
     }
 
-    // Reset for next hint
-    startHintTimer();
+    // Advance to next hint for next cycle
+    hintIndex = Math.min(hintIndex + 1, currentEra.hints.length - 1);
+
+    // Schedule next hint if there are undiscovered items
+    if (currentEra.discoveries) {
+      const anyLeft = currentEra.discoveries.some(d =>
+        !discoveredInEra.includes(d.id)
+      );
+      if (anyLeft) {
+        startHintTimer();
+      }
+    }
   }
 
   // === NAVIGATION ===
@@ -436,19 +513,10 @@ const Timeline = (function() {
   }
 
   // === UTILITY ===
-  function sliderToValue(sliderPos, min, max) {
-    // Log scale interpolation
-    const logMin = Math.log10(Math.max(min, 1e-10));
-    const logMax = Math.log10(Math.max(max, 1e-10));
-    const t = sliderPos / 1000;
-    return Math.pow(10, logMin + t * (logMax - logMin));
-  }
-
-  function valueToSlider(value, min, max) {
-    const logMin = Math.log10(Math.max(min, 1e-10));
-    const logMax = Math.log10(Math.max(max, 1e-10));
-    const logVal = Math.log10(Math.max(value, 1e-10));
-    return Math.round(((logVal - logMin) / (logMax - logMin)) * 1000);
+  // Format a log10 exponent as a human-readable value with unit
+  function formatLogValue(logExp, unit) {
+    const value = Math.pow(10, logExp);
+    return formatValue(value, unit);
   }
 
   function formatValue(value, unit) {
