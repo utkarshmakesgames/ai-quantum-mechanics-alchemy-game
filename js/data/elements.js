@@ -79,47 +79,8 @@ const ELEMENTS = {
   },
 
   // ============================================================
-  // ERA 1: INTERMEDIATE PARTICLES (consumable building blocks)
+  // ERA 1: FORCE CARRIERS & OTHER FUNDAMENTALS
   // ============================================================
-  diquark_uu: {
-    id: 'diquark_uu',
-    name: 'Di-Quark (uu)',
-    era: 1,
-    symbol: 'uu',
-    color: '#00e5ff',
-    description: 'Two up quarks bound together by color force.',
-    flavor: 'A stepping stone to building protons — two-thirds of the recipe.',
-    role: 'Intermediate',
-    category: 'composite',
-    isIntermediate: true,
-    combineHint: 'Add a down quark to complete a proton (uud).'
-  },
-  diquark_dd: {
-    id: 'diquark_dd',
-    name: 'Di-Quark (dd)',
-    era: 1,
-    symbol: 'dd',
-    color: '#00b8d4',
-    description: 'Two down quarks bound together by color force.',
-    flavor: 'The first step toward building a neutron.',
-    role: 'Intermediate',
-    category: 'composite',
-    isIntermediate: true,
-    combineHint: 'Add an up quark to complete a neutron (ddu).'
-  },
-  diquark_ud: {
-    id: 'diquark_ud',
-    name: 'Di-Quark (ud)',
-    era: 1,
-    symbol: 'ud',
-    color: '#00acc1',
-    description: 'An up-down quark pair — the most common diquark inside nucleons.',
-    flavor: 'Mixed-flavor diquarks are everywhere inside protons and neutrons.',
-    role: 'Intermediate',
-    category: 'composite',
-    isIntermediate: true,
-    combineHint: 'A versatile building block. Try combining with other quarks.'
-  },
   gluon: {
     id: 'gluon',
     name: 'Gluon',
@@ -428,6 +389,18 @@ const ELEMENTS = {
     role: 'Atom',
     category: 'atom',
     combineHint: 'Where stars stop fusing. Combine with neutrons for fission, or with gravity for black holes.'
+  },
+  uranium: {
+    id: 'uranium',
+    name: 'Uranium',
+    era: 3,
+    symbol: 'U',
+    color: '#76ff03',
+    description: 'A heavy, radioactive element — the fuel of nuclear reactors.',
+    flavor: 'With 92 protons, uranium is the heaviest naturally occurring element. Its nucleus is barely stable.',
+    role: 'Atom',
+    category: 'atom',
+    combineHint: 'Heavy and unstable. Hit it with a neutron and watch what happens — nuclear fission!'
   },
   nucleus: {
     id: 'nucleus',
@@ -1298,7 +1271,7 @@ const ELEMENTS = {
 
 // Starting elements given to the player at the beginning
 const STARTING_ELEMENTS = [
-  'up_quark', 'down_quark', 'electron', 'photon', 'neutrino', 'gluon'
+  'up_quark', 'down_quark', 'electron', 'photon', 'neutrino', 'gluon', 'energy'
 ];
 
 // Era names and colors

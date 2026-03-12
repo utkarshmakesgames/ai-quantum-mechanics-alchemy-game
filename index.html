@@ -3,477 +3,166 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Quantum Forge</title>
+  <title>Universe Timeline — Quantum Physics Journey</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <canvas id="bg-shader"></canvas>
-  <!-- ============================================================ -->
-  <!-- TITLE SCREEN -->
-  <!-- ============================================================ -->
-  <div id="title-screen" class="screen active">
-    <div class="stars"></div>
-    <div class="title-content">
-      <h1 class="game-title">
-        <span class="title-quantum">Quantum</span>
-        <span class="title-forge">Forge</span>
+
+  <!-- ============ TITLE SCREEN ============ -->
+  <div id="screen-title" class="screen active">
+    <div class="title-container">
+      <div class="title-stars"></div>
+      <h1 class="title-text">
+        <span class="title-universe">Universe</span>
+        <span class="title-timeline">Timeline</span>
       </h1>
-      <p class="tagline">Forge the universe, one particle at a time.</p>
-      <div class="title-buttons">
-        <button id="btn-new-game" class="btn btn-primary">New Game</button>
-        <button id="btn-continue" class="btn btn-secondary" style="display:none;">Continue</button>
-        <button id="btn-challenges" class="btn btn-secondary">Challenges</button>
-        <button id="btn-journal-title" class="btn btn-secondary">Journal</button>
+      <p class="title-subtitle">Guide the universe from the Big Bang to modern physics</p>
+
+      <div class="title-modes">
+        <button id="btn-story" class="mode-btn story-btn">
+          <span class="mode-icon">🌌</span>
+          <span class="mode-name">Story Mode</span>
+          <span class="mode-desc">Experience the universe's evolution</span>
+        </button>
+        <button id="btn-sandbox" class="mode-btn sandbox-btn">
+          <span class="mode-icon">⚗️</span>
+          <span class="mode-name">Sandbox</span>
+          <span class="mode-desc">Free alchemy with discovered elements</span>
+        </button>
       </div>
-      <div id="title-progress" class="title-progress" style="display:none;">
-        <div class="progress-bar-container">
-          <div id="title-progress-bar" class="progress-bar"></div>
-        </div>
-        <span id="title-progress-text"></span>
+
+      <div id="sandbox-hint" class="sandbox-hint" style="display:none">
+        Complete Story Mode eras to unlock elements for Sandbox!
       </div>
     </div>
   </div>
 
-  <!-- ============================================================ -->
-  <!-- MAIN GAME SCREEN -->
-  <!-- ============================================================ -->
-  <div id="game-screen" class="screen">
-    <div class="stars"></div>
+  <!-- ============ STORY MODE ============ -->
+  <div id="screen-story" class="screen">
+    <div class="story-layout">
 
-    <!-- Top Bar -->
-    <div class="top-bar">
-      <div class="top-bar-left">
-        <button id="btn-menu" class="btn btn-icon" title="Menu">&#9776;</button>
-        <span class="game-title-small">Quantum Forge</span>
+      <!-- Top bar -->
+      <header class="story-header">
+        <button class="btn-back-title btn-icon" title="Back to menu">← Menu</button>
+        <div class="header-center">
+          <h2 id="era-title">Era 1: Quark Epoch</h2>
+          <span id="era-time" class="era-time">10⁻¹² s after the Big Bang</span>
+        </div>
+        <div class="header-right">
+          <button class="btn-mute btn-icon">🔊</button>
+        </div>
+      </header>
+
+      <!-- Era navigation -->
+      <div class="era-nav">
+        <button id="btn-prev-era" class="btn-era-nav" disabled>← Prev</button>
+        <div id="era-map" class="era-map"></div>
+        <button id="btn-next-era" class="btn-era-nav">Next →</button>
       </div>
-      <div class="top-bar-center">
-        <div class="qe-counter">
-          <span class="qe-label">QE</span>
-          <span id="qe-amount" class="qe-amount">0</span>
+
+      <!-- Main content -->
+      <div class="story-content">
+
+        <!-- Left: Particle canvas (dials mode) or question context -->
+        <div class="story-left">
+          <p id="era-description" class="era-desc"></p>
+          <canvas id="particle-canvas" class="particle-canvas"></canvas>
         </div>
-        <div class="discovery-counter">
-          <span id="discovery-count">0</span> / <span id="discovery-total">0</span> discovered
-        </div>
-        <div class="era-indicator">
-          Era: <span id="current-era-name">Fundamental Particles</span>
-        </div>
-      </div>
-      <div class="top-bar-right">
-        <div class="volume-wrapper">
-          <button id="btn-mute" class="btn btn-icon" title="Volume Settings">&#128266;</button>
-          <div id="volume-panel" class="volume-panel hidden">
-            <div class="volume-row">
-              <label>Music</label>
-              <input type="range" id="slider-music" min="0" max="100" value="80" class="volume-slider">
-              <span id="vol-music-val" class="vol-val">80</span>
-            </div>
-            <div class="volume-row">
-              <label>SFX</label>
-              <input type="range" id="slider-sfx" min="0" max="100" value="60" class="volume-slider">
-              <span id="vol-sfx-val" class="vol-val">60</span>
-            </div>
+
+        <!-- Right: Controls & discoveries -->
+        <div class="story-right">
+
+          <!-- DIAL PANEL -->
+          <div id="dial-panel" class="panel" style="display:none">
+            <h3 class="panel-title">Adjust Conditions</h3>
+            <div id="dial-sliders" class="dial-sliders"></div>
+            <div id="dial-hint" class="dial-hint" style="display:none"></div>
+          </div>
+
+          <!-- CHOICE PANEL -->
+          <div id="choice-panel" class="panel" style="display:none">
+            <div id="choice-content" class="choice-content"></div>
+            <div id="choice-feedback" class="choice-feedback" style="display:none"></div>
+          </div>
+
+          <!-- DISCOVERIES -->
+          <div class="discoveries-panel">
+            <h3 class="panel-title">Discoveries</h3>
+            <div id="era-discoveries" class="discovery-list"></div>
           </div>
         </div>
-        <button id="btn-journal" class="btn btn-icon" title="Journal">&#128214;</button>
-        <button id="btn-achievements-game" class="btn btn-icon" title="Achievements">&#127942;</button>
-        <button id="btn-challenges-game" class="btn btn-icon" title="Challenges">&#9733;</button>
+      </div>
+
+      <!-- Discovery popup -->
+      <div id="discovery-popup" class="discovery-popup"></div>
+
+      <!-- Era complete banner -->
+      <div id="era-complete-banner" class="era-complete-banner" style="display:none">
+        <span class="era-complete-text"></span>
       </div>
     </div>
+  </div>
 
-    <!-- Main Content: 3-panel layout -->
-    <div class="game-content">
-      <!-- Left Panel: Element Inventory -->
-      <div class="panel panel-left">
-        <div class="panel-header">
-          <h2>Elements</h2>
-          <div class="filter-controls">
-            <div class="view-mode-buttons">
-              <button id="view-all" class="btn btn-view active" data-view="all" title="Show All">All</button>
-              <button id="view-useful" class="btn btn-view" data-view="useful" title="Show elements with undiscovered combos">Useful</button>
-              <button id="view-pinned" class="btn btn-view" data-view="pinned" title="Show Pinned">Pinned</button>
-            </div>
-            <input type="text" id="element-search" placeholder="Search..." class="search-input">
-          </div>
-        </div>
-        <!-- Pinned elements row -->
-        <div id="pinned-row" class="pinned-row" style="display:none;"></div>
-        <div id="element-grid" class="element-grid categorized">
-          <!-- Elements populated by JS with category sections -->
-        </div>
-      </div>
+  <!-- ============ SANDBOX MODE ============ -->
+  <div id="screen-sandbox" class="screen">
+    <div class="sandbox-layout">
 
-      <!-- Center Panel: THE FORGE (center stage!) -->
-      <div class="panel panel-center">
-        <!-- Streak display -->
-        <div id="streak-display" class="streak-display" style="display:none;">
-          <span class="streak-fire">&#9889;</span>
-          <span id="streak-count" class="streak-count">1</span>
-          <span class="streak-label">STREAK</span>
-          <span id="streak-multiplier" class="streak-multiplier">x1.0</span>
+      <header class="sandbox-header">
+        <button class="btn-back-title btn-icon">← Menu</button>
+        <h2>Sandbox Forge</h2>
+        <div class="header-right">
+          <span id="sandbox-stats" class="sandbox-stats"></span>
+          <button class="btn-mute btn-icon">🔊</button>
         </div>
+      </header>
 
-        <!-- The Forge -->
-        <div id="forge-area" class="forge-area">
-          <h2 class="forge-title">The Forge</h2>
+      <div class="sandbox-content">
+        <!-- Forge -->
+        <div class="sandbox-forge">
           <div class="forge-slots">
-            <div id="slot-1" class="forge-slot" data-slot="1">
-              <span class="slot-placeholder">Select an element</span>
+            <div id="sandbox-slot1" class="sandbox-slot empty active">
+              <span class="slot-empty">?</span>
             </div>
-            <div class="forge-plus">+</div>
-            <div id="slot-2" class="forge-slot" data-slot="2">
-              <span class="slot-placeholder">Select an element</span>
+            <span class="forge-plus">+</span>
+            <div id="sandbox-slot2" class="sandbox-slot empty">
+              <span class="slot-empty">?</span>
             </div>
-          </div>
-          <div id="forge-preview" class="forge-preview" style="display:none;">
-            <span class="forge-preview-label">OUTPUT</span>
-            <span id="forge-preview-name" class="forge-preview-name" data-text="???">???</span>
-          </div>
-          <button id="btn-combine" class="btn btn-combine" disabled>Combine</button>
-          <div id="batch-craft" class="batch-craft" style="display:none;">
-            <button id="batch-minus" class="btn btn-batch">-</button>
-            <span id="batch-count" class="batch-count">1</span>
-            <button id="batch-plus" class="btn btn-batch">+</button>
-            <button id="btn-batch-craft" class="btn btn-batch-craft">Craft x1</button>
-          </div>
-          <div id="forge-result" class="forge-result" style="display:none;">
-            <!-- Result shown here -->
-          </div>
-          <div id="forge-hint" class="forge-hint" style="display:none;">
-            <!-- Hints shown here -->
-          </div>
-
-          <!-- Stability Meter -->
-          <div class="stability-meter">
-            <div class="stability-label">Forge Stability</div>
-            <div class="stability-bar-container">
-              <div id="stability-bar" class="stability-bar" style="width:100%"></div>
-            </div>
-            <span id="stability-text" class="stability-text">100%</span>
-          </div>
-        </div>
-
-        <!-- Recent discoveries — slim horizontal strip -->
-        <div class="recent-discoveries">
-          <h3>Recent</h3>
-          <div id="recent-list" class="recent-list">
-            <p class="empty-text">Start combining elements!</p>
-          </div>
-        </div>
-
-        <!-- QE float container -->
-        <div id="qe-float-container" class="qe-float-container"></div>
-
-        <!-- Text command input (for LLM playtesting) -->
-        <div class="cmd-bar">
-          <input type="text" id="cmd-input" class="cmd-input" placeholder="Type command: combine X + Y | help" autocomplete="off">
-        </div>
-      </div>
-
-      <!-- Right Panel: Element Info (top) + Research Notes (bottom, compact) -->
-      <div class="panel panel-right">
-        <div id="info-panel" class="info-panel">
-          <div class="info-default">
-            <h2>Welcome to the Forge</h2>
-            <p>Select two elements and combine them to discover new particles, atoms, and quantum phenomena.</p>
-            <div class="tips">
-              <h3>Tips</h3>
-              <ul>
-                <li>Click an element to select it for the forge</li>
-                <li>Intermediates are consumed — re-craft them!</li>
-                <li>Build streaks for bonus Quantum Energy</li>
-                <li>Wrong guesses cost stability</li>
-              </ul>
-            </div>
-          </div>
-          <div id="info-element" class="info-element" style="display:none;">
-            <div class="info-element-header">
-              <div id="info-symbol" class="element-symbol large"></div>
-              <div>
-                <h2 id="info-name"></h2>
-                <span id="info-era" class="era-badge"></span>
-                <span id="info-mastery" class="mastery-badge" style="display:none;"></span>
+            <span id="sandbox-slot3-group" class="forge-plus" style="display:none">
+              + <div id="sandbox-slot3" class="sandbox-slot empty">
+                <span class="slot-empty">?</span>
               </div>
-            </div>
-            <p id="info-description" class="info-description"></p>
-            <p id="info-flavor" class="info-flavor"></p>
-            <div id="info-stock" class="info-stock" style="display:none;">
-              <span>Stock: </span><span id="info-stock-count"></span>
-            </div>
-            <div id="info-journal-preview" class="info-journal-preview">
-              <h3>From the Journal</h3>
-              <div id="info-journal-content"></div>
-              <button id="btn-full-journal" class="btn btn-small">Read Full Entry</button>
-            </div>
-            <div id="info-recipes" class="info-recipes">
-              <h3>Known Recipes</h3>
-              <div id="info-recipes-list"></div>
-            </div>
+            </span>
           </div>
-        </div>
 
-        <!-- Research Notes — compact cards in right panel -->
-        <div class="research-notes-panel">
-          <h3>Research Notes</h3>
-          <div id="research-notes-list" class="research-notes-list">
-            <p class="empty-text">Loading research notes...</p>
+          <div class="forge-actions">
+            <button id="sandbox-combine" class="btn-combine" disabled>Combine</button>
+            <button id="sandbox-clear" class="btn-clear">Clear</button>
+            <button id="sandbox-toggle-slots" class="btn-toggle">3-Slot</button>
           </div>
+
+          <div id="sandbox-preview" class="sandbox-preview"></div>
+          <div id="sandbox-result" class="sandbox-result" style="display:none"></div>
         </div>
-      </div>
-    </div>
 
-    <!-- Bottom hint bar -->
-    <div id="hint-bar" class="hint-bar" style="display:none;">
-      <span id="hint-text"></span>
-      <button id="btn-dismiss-hint" class="btn btn-tiny">Got it</button>
-    </div>
-
-    <!-- Decoherence overlay -->
-    <div id="decoherence-overlay" class="decoherence-overlay" style="display:none;">
-      <div class="decoherence-content">
-        <h2>Decoherence!</h2>
-        <p>The forge has destabilized. Recalibrating...</p>
-        <p>Use this time to read your journal and research notes.</p>
-        <div class="decoherence-timer">
-          <span id="decoherence-countdown">30</span>s
+        <!-- Element grid -->
+        <div class="sandbox-elements">
+          <input id="sandbox-search" type="text" placeholder="Search elements..." class="sandbox-search">
+          <span id="sandbox-count" class="sandbox-count"></span>
+          <div id="sandbox-grid" class="sandbox-grid"></div>
         </div>
       </div>
     </div>
   </div>
-
-  <!-- ============================================================ -->
-  <!-- JOURNAL SCREEN -->
-  <!-- ============================================================ -->
-  <div id="journal-screen" class="screen">
-    <div class="stars"></div>
-    <div class="journal-layout">
-      <div class="journal-header">
-        <button id="btn-journal-back" class="btn btn-icon">&larr;</button>
-        <h1>Quantum Journal</h1>
-        <div class="journal-stats">
-          <span id="journal-count">0</span> entries unlocked
-        </div>
-      </div>
-      <div class="journal-content">
-        <div class="journal-sidebar">
-          <div class="journal-filter">
-            <select id="journal-era-filter">
-              <option value="all">All Eras</option>
-              <option value="1">Era 1: Fundamental</option>
-              <option value="2">Era 2: Composite</option>
-              <option value="3">Era 3: Atoms</option>
-              <option value="4">Era 4: Phenomena</option>
-              <option value="5">Era 5: Advanced</option>
-              <option value="6">Era 6: Hidden</option>
-            </select>
-            <input type="text" id="journal-search" placeholder="Search..." class="search-input">
-          </div>
-          <div id="journal-list" class="journal-list">
-            <!-- Journal entries listed here -->
-          </div>
-        </div>
-        <div id="journal-detail" class="journal-detail">
-          <div class="journal-detail-placeholder">
-            <p>Select an entry to read about it.</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ============================================================ -->
-  <!-- CHALLENGE SCREEN -->
-  <!-- ============================================================ -->
-  <div id="challenge-screen" class="screen">
-    <div class="stars"></div>
-    <div class="challenge-layout">
-      <div class="challenge-header">
-        <button id="btn-challenge-back" class="btn btn-icon">&larr;</button>
-        <h1>Challenges</h1>
-      </div>
-      <div id="daily-challenge" class="daily-challenge">
-        <!-- Daily challenge shown here -->
-      </div>
-      <div id="challenge-list" class="challenge-list">
-        <!-- Challenges listed here -->
-      </div>
-    </div>
-  </div>
-
-  <!-- ============================================================ -->
-  <!-- CHALLENGE PLAY SCREEN -->
-  <!-- ============================================================ -->
-  <div id="challenge-play-screen" class="screen">
-    <div class="stars"></div>
-    <div class="top-bar">
-      <div class="top-bar-left">
-        <button id="btn-challenge-quit" class="btn btn-icon" title="Quit Challenge">&larr;</button>
-        <span id="challenge-play-name" class="game-title-small">Challenge</span>
-      </div>
-      <div class="top-bar-center">
-        <div class="challenge-info">
-          <span id="challenge-moves">Moves: 0 / <span id="challenge-max-moves">10</span></span>
-          <span id="challenge-goals">Goals: <span id="challenge-goals-done">0</span>/<span id="challenge-goals-total">0</span></span>
-        </div>
-      </div>
-      <div class="top-bar-right">
-        <button id="btn-challenge-hint" class="btn btn-small">Hint</button>
-      </div>
-    </div>
-    <div class="game-content">
-      <div class="panel panel-left">
-        <div class="panel-header">
-          <h2>Elements</h2>
-        </div>
-        <div id="challenge-element-grid" class="element-grid">
-          <!-- Challenge elements populated by JS -->
-        </div>
-      </div>
-      <div class="panel panel-center">
-        <div class="forge-area">
-          <h2 class="forge-title">The Forge</h2>
-          <div class="forge-slots">
-            <div id="challenge-slot-1" class="forge-slot" data-slot="1">
-              <span class="slot-placeholder">Select an element</span>
-            </div>
-            <div class="forge-plus">+</div>
-            <div id="challenge-slot-2" class="forge-slot" data-slot="2">
-              <span class="slot-placeholder">Select an element</span>
-            </div>
-          </div>
-          <button id="btn-challenge-combine" class="btn btn-combine" disabled>Combine</button>
-          <div id="challenge-forge-result" class="forge-result" style="display:none;"></div>
-        </div>
-        <div id="challenge-goal-display" class="challenge-goal-display">
-          <h3>Goals</h3>
-          <div id="challenge-goal-list"></div>
-        </div>
-      </div>
-      <div class="panel panel-right">
-        <div class="info-panel">
-          <div id="challenge-info" class="info-default">
-            <h2 id="challenge-desc-title">Challenge</h2>
-            <p id="challenge-desc-text"></p>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ============================================================ -->
-  <!-- DISCOVERY MODAL -->
-  <!-- ============================================================ -->
-  <div id="discovery-modal" class="modal" style="display:none;">
-    <div class="modal-backdrop"></div>
-    <div class="modal-content discovery-modal-content">
-      <div id="discovery-confetti" class="discovery-confetti"></div>
-      <div class="discovery-era-banner" id="discovery-era-banner"></div>
-      <div class="discovery-animation">
-        <div id="discovery-symbol" class="element-symbol huge"></div>
-      </div>
-      <h2 id="discovery-name" class="discovery-name">New Discovery!</h2>
-      <p id="discovery-flavor" class="discovery-flavor"></p>
-      <div id="discovery-qe-earned" class="discovery-qe-earned" style="display:none;"></div>
-      <div id="discovery-education" class="discovery-education">
-        <div class="edu-section">
-          <h4>What you built</h4>
-          <p id="discovery-what"></p>
-        </div>
-        <div class="edu-section">
-          <h4>The weird part</h4>
-          <p id="discovery-weird"></p>
-        </div>
-      </div>
-      <div id="discovery-next-hints" class="discovery-next-hints"></div>
-      <div class="discovery-actions">
-        <button id="btn-discovery-journal" class="btn btn-secondary">Full Journal Entry</button>
-        <button id="btn-discovery-continue" class="btn btn-primary">Continue Forging</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- ============================================================ -->
-  <!-- MENU MODAL -->
-  <!-- ============================================================ -->
-  <div id="menu-modal" class="modal" style="display:none;">
-    <div class="modal-backdrop"></div>
-    <div class="modal-content menu-modal-content">
-      <h2>Menu</h2>
-      <button id="btn-menu-resume" class="btn btn-primary">Resume</button>
-      <button id="btn-menu-journal" class="btn btn-secondary">Journal</button>
-      <button id="btn-menu-achievements" class="btn btn-secondary">Achievements</button>
-      <button id="btn-menu-challenges" class="btn btn-secondary">Challenges</button>
-      <button id="btn-menu-title" class="btn btn-secondary">Title Screen</button>
-      <button id="btn-menu-reset" class="btn btn-danger">Reset Progress</button>
-    </div>
-  </div>
-
-  <!-- ============================================================ -->
-  <!-- INTRO/TUTORIAL MODAL -->
-  <!-- ============================================================ -->
-  <div id="intro-modal" class="modal" style="display:none;">
-    <div class="modal-backdrop"></div>
-    <div class="modal-content intro-modal-content">
-      <div id="tutorial-step-1" class="tutorial-step">
-        <h2>Welcome to the Quantum Forge</h2>
-        <p>You have <strong>6 fundamental particles</strong>. Combine them to recreate the discoveries of physics — from quarks to quantum computers.</p>
-        <p class="tutorial-key-insight">Let's build your first particle: a <strong>Proton</strong>!</p>
-        <button id="btn-tutorial-start" class="btn btn-primary">Let's Go!</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- ============================================================ -->
-  <!-- ACHIEVEMENT TOAST -->
-  <!-- ============================================================ -->
-  <div id="achievement-toast" class="achievement-toast" style="display:none;">
-    <div class="achievement-toast-icon">&#127942;</div>
-    <div class="achievement-toast-content">
-      <div class="achievement-toast-title" id="achievement-toast-title"></div>
-      <div class="achievement-toast-desc" id="achievement-toast-desc"></div>
-    </div>
-  </div>
-
-  <!-- ============================================================ -->
-  <!-- ACHIEVEMENTS MODAL -->
-  <!-- ============================================================ -->
-  <div id="achievements-modal" class="modal" style="display:none;">
-    <div class="modal-backdrop"></div>
-    <div class="modal-content achievements-modal-content">
-      <h2>Achievements</h2>
-      <div id="achievements-list" class="achievements-list"></div>
-      <button id="btn-achievements-close" class="btn btn-primary" style="margin-top:16px;">Close</button>
-    </div>
-  </div>
-
-  <!-- ============================================================ -->
-  <!-- CHALLENGE COMPLETE MODAL -->
-  <!-- ============================================================ -->
-  <div id="challenge-complete-modal" class="modal" style="display:none;">
-    <div class="modal-backdrop"></div>
-    <div class="modal-content challenge-complete-content">
-      <h2 id="challenge-complete-title">Challenge Complete!</h2>
-      <p id="challenge-complete-text"></p>
-      <div id="challenge-complete-stats" class="challenge-stats"></div>
-      <p id="challenge-complete-teaches" class="challenge-teaches"></p>
-      <button id="btn-challenge-complete-ok" class="btn btn-primary">Back to Challenges</button>
-    </div>
-  </div>
-
-  <!-- Tutorial tooltip -->
-  <div id="tutorial-tooltip"></div>
-
-  <!-- Particle shower container (for combination animations) -->
-  <div id="particle-shower" class="particle-shower"></div>
 
   <!-- Scripts -->
-  <script src="data/elements.js"></script>
-  <script src="data/recipes.js"></script>
-  <script src="data/journal.js"></script>
-  <script src="data/challenges.js"></script>
-  <script src="data/research-notes.js"></script>
-  <script src="data/achievements.js"></script>
-  <script src="audio.js"></script>
-  <script src="shader-bg.js"></script>
-  <script src="game.js"></script>
+  <script src="js/data/elements.js"></script>
+  <script src="js/data/recipes.js"></script>
+  <script src="js/data/eras.js"></script>
+  <script src="js/data/journal.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/particles.js"></script>
+  <script src="js/timeline.js"></script>
+  <script src="js/sandbox.js"></script>
+  <script src="js/main.js"></script>
 </body>
 </html>
