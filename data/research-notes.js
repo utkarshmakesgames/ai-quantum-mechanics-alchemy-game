@@ -173,14 +173,26 @@ const RESEARCH_NOTES = [
   // =========================================================================
 
   {
+    id: 'rn_bridge_4',
+    title: 'Building Barriers',
+    era: 4,
+    lesson: 'Charged particles face energy barriers — the electromagnetic force repels them from nuclei.',
+    lessonFull: 'The Coulomb barrier is an energy barrier created by electromagnetic repulsion around atomic nuclei. To explore quantum phenomena, you first need to create this barrier. Try combining the electromagnetic force with a nucleus — or combine energy with the strong force.',
+    goal: ['energy_barrier'],
+    hint: 'Combine the electromagnetic force with a nucleus to create an energy barrier. Or try energy + strong force.',
+    prerequisite: 'rn_10',
+    nextHint: 'Now fire a particle at this barrier to see something quantum happen...',
+  },
+
+  {
     id: 'rn_13',
     title: 'The Quantum World Begins',
     era: 4,
     lesson: 'The double-slit experiment proves that particles can behave as waves.',
-    lessonFull: 'Even single photons produce an interference pattern through two slits, as if each passes through both simultaneously. You need a particle and a barrier to see this.',
+    lessonFull: 'Even single photons produce an interference pattern through two slits, as if each passes through both simultaneously. Fire a photon or electron at the energy barrier to see this.',
     goal: ['double_slit'],
-    hint: 'What happens when a photon encounters a barrier with two paths?',
-    prerequisite: 'rn_10',
+    hint: 'Send a photon or electron through the energy barrier.',
+    prerequisite: 'rn_bridge_4',
     nextHint: 'If particles go through both slits, they must be in two states at once...',
   },
 
