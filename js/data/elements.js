@@ -1275,7 +1275,7 @@ const STARTING_ELEMENTS = [
 ];
 
 // Era names and colors
-const ERAS = {
+const ELEMENT_ERAS = {
   1: { name: 'Fundamental Particles', color: '#00e5ff', unlockThreshold: 0 },
   2: { name: 'Composite Particles', color: '#00e676', unlockThreshold: 0 },
   3: { name: 'Atoms & Nuclear Physics', color: '#ffd740', unlockThreshold: 10 },
