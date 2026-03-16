@@ -97,6 +97,12 @@ const Timeline = (function() {
 
     renderEraMap();
     renderDiscoveryList();
+    updateScoreDisplay();
+
+    // Update proximity for dial eras after a short delay
+    if (currentEra.type === 'dials') {
+      setTimeout(updateProximityFeedback, 100);
+    }
   }
 
   // === DIAL MODE ===
@@ -169,6 +175,7 @@ const Timeline = (function() {
     updateParticleConfig();
     checkDialThresholds();
     resetHintTimer();
+    updateProximityFeedback();
   }
 
   function updateParticleConfig() {
@@ -252,6 +259,7 @@ const Timeline = (function() {
     document.getElementById('dial-panel').style.display = 'none';
     document.getElementById('choice-panel').style.display = 'block';
     Particles.stop();
+    startChoiceTimer();
 
     renderCurrentChoice();
   }
@@ -303,6 +311,8 @@ const Timeline = (function() {
   function handleChoiceAnswer(q, selectedIndex, panel) {
     const correct = selectedIndex === q.correct;
     const feedbackDiv = document.getElementById('choice-feedback');
+    const timeBonus = correct ? getTimeBonus() : 0;
+    stopChoiceTimer();
 
     // Disable all buttons
     panel.querySelectorAll('.choice-btn').forEach((btn, i) => {
@@ -317,39 +327,39 @@ const Timeline = (function() {
       feedbackDiv.innerHTML = `
         <div class="feedback-icon">✓</div>
         <div class="feedback-text">${q.explanations.correct}</div>
+        ${timeBonus > 0 ? '<div class="time-bonus">Speed bonus: +' + timeBonus + '</div>' : ''}
       `;
-      App.addScore(100);
+      App.addScore(100 + timeBonus);
     } else {
       Audio.play('wrong');
       feedbackDiv.className = 'choice-feedback wrong';
-      // eras.js wrong explanations are keyed by choice index
       const wrongText = (q.explanations.wrong && q.explanations.wrong[selectedIndex])
         || q.explanations.correct;
       feedbackDiv.innerHTML = `
         <div class="feedback-icon">✗</div>
         <div class="feedback-text">${wrongText}</div>
       `;
-      App.addScore(25); // partial credit for trying
+      App.addScore(25);
     }
 
-    // Grant discovery regardless of correct/wrong — learning happens either way
+    // Grant discovery regardless of correct/wrong
     if (q.element) {
       triggerDiscovery(q.element, null, false);
     }
 
     feedbackDiv.style.display = 'block';
 
-    // Add "Continue" button
     const continueBtn = document.createElement('button');
     continueBtn.className = 'btn-continue';
     continueBtn.textContent = 'Continue →';
     continueBtn.addEventListener('click', () => {
       choiceIndex++;
       renderCurrentChoice();
+      if (currentEra && currentEra.type === 'choice' && choiceIndex < (currentEra.questions || []).length) {
+        startChoiceTimer();
+      }
     });
     feedbackDiv.appendChild(continueBtn);
-
-    // Auto-scroll to show feedback
     feedbackDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
@@ -437,9 +447,17 @@ const Timeline = (function() {
 
   // === ERA COMPLETION ===
   function markEraComplete() {
+    // Save per-era stars
+    if (!appState.storyProgress.eraStars) appState.storyProgress.eraStars = {};
+    const stars = calculateEraStars(currentEraIndex);
+    const existing = appState.storyProgress.eraStars[currentEraIndex] || 0;
+    appState.storyProgress.eraStars[currentEraIndex] = Math.max(stars, existing);
+
+    stopChoiceTimer();
     App.completeEra(currentEraIndex);
     Audio.play('era-complete');
     renderEraMap();
+    renderEraStars();
 
     // Update next button
     const nextBtn = document.getElementById('btn-next-era');
@@ -555,10 +573,21 @@ const Timeline = (function() {
   }
 
   // === SCORE DISPLAY ===
+  let scoreHooked = false;
   function updateScoreDisplay() {
     const scoreEl = document.getElementById('story-score');
     if (scoreEl && appState) {
       scoreEl.textContent = appState.storyProgress.totalScore;
+    }
+    // Hook App.addScore on first call (after App is defined)
+    if (!scoreHooked && typeof App !== 'undefined' && App.addScore) {
+      scoreHooked = true;
+      const origAddScore = App.addScore;
+      App.addScore = function(points) {
+        origAddScore.call(App, points);
+        updateScoreDisplay();
+        showScoreFloat(points);
+      };
     }
   }
 
@@ -571,14 +600,6 @@ const Timeline = (function() {
     scoreEl.parentElement.appendChild(float);
     setTimeout(() => float.remove(), 1200);
   }
-
-  // Hook into App.addScore
-  const _origAddScore = App.addScore;
-  App.addScore = function(points) {
-    _origAddScore.call(App, points);
-    updateScoreDisplay();
-    showScoreFloat(points);
-  };
 
   // === PROXIMITY FEEDBACK (dial eras) ===
   function computeProximity() {
@@ -763,62 +784,9 @@ const Timeline = (function() {
     }
   }
 
-  // Override onDialChange to include proximity
-  const _origOnDialChange = onDialChange;
-  function onDialChangeWithProximity() {
-    updateParticleConfig();
-    checkDialThresholds();
-    resetHintTimer();
-    updateProximityFeedback();
-  }
-
-  // Override loadEra to update score and proximity
-  const _origLoadEra = loadEra;
-  function loadEraEnhanced(index) {
-    // Play transition if moving forward
-    if (currentEraIndex !== undefined && index > currentEraIndex && document.getElementById('era-transition-overlay')) {
-      playEraTransition(currentEraIndex, index);
-      return;
-    }
-
-    _origLoadEra(index);
-    updateScoreDisplay();
-
-    // Start choice timer for choice eras
-    if (currentEra && currentEra.type === 'choice') {
-      startChoiceTimer();
-    }
-
-    // Update proximity for dial eras
-    if (currentEra && currentEra.type === 'dials') {
-      setTimeout(updateProximityFeedback, 100);
-    }
-  }
-
-  // Override markEraComplete to save stars and check full completion
-  const _origMarkEraComplete = markEraComplete;
-  function markEraCompleteEnhanced() {
-    // Save stars
-    if (!appState.storyProgress.eraStars) appState.storyProgress.eraStars = {};
-    const stars = calculateEraStars(currentEraIndex);
-    const existing = appState.storyProgress.eraStars[currentEraIndex] || 0;
-    appState.storyProgress.eraStars[currentEraIndex] = Math.max(stars, existing);
-
-    stopChoiceTimer();
-    _origMarkEraComplete();
-
-    // Render stars in era map
-    renderEraStars();
-
-    // Check for full completion (all 8 eras)
-    const allComplete = ERAS.every((_, i) => appState.storyProgress.completedEras.includes(i));
-    if (allComplete) {
-      setTimeout(showCompletionCeremony, 1000);
-    }
-  }
-
   function renderEraStars() {
-    const stars = appState.storyProgress.eraStars || {};
+    if (!appState || !appState.storyProgress.eraStars) return;
+    const stars = appState.storyProgress.eraStars;
     document.querySelectorAll('.era-map-item').forEach((item, i) => {
       const s = stars[i] || 0;
       const existing = item.querySelector('.era-stars');
@@ -831,68 +799,6 @@ const Timeline = (function() {
       }
     });
   }
-
-  // Override handleChoiceAnswer to include time bonus
-  const _origHandleChoiceAnswer = handleChoiceAnswer;
-  function handleChoiceAnswerWithBonus(q, selectedIndex, panel) {
-    const correct = selectedIndex === q.correct;
-    const feedbackDiv = document.getElementById('choice-feedback');
-
-    // Disable all buttons
-    panel.querySelectorAll('.choice-btn').forEach((btn, i) => {
-      btn.disabled = true;
-      if (i === q.correct) btn.classList.add('correct');
-      if (i === selectedIndex && !correct) btn.classList.add('wrong');
-    });
-
-    const timeBonus = correct ? getTimeBonus() : 0;
-    stopChoiceTimer();
-
-    if (correct) {
-      Audio.play('correct');
-      feedbackDiv.className = 'choice-feedback correct';
-      feedbackDiv.innerHTML =
-        '<div class="feedback-icon">✓</div>' +
-        '<div class="feedback-text">' + q.explanations.correct + '</div>' +
-        (timeBonus > 0 ? '<div class="time-bonus">Speed bonus: +' + timeBonus + '</div>' : '');
-      App.addScore(100 + timeBonus);
-    } else {
-      Audio.play('wrong');
-      feedbackDiv.className = 'choice-feedback wrong';
-      const wrongText = (q.explanations.wrong && q.explanations.wrong[selectedIndex])
-        || q.explanations.correct;
-      feedbackDiv.innerHTML =
-        '<div class="feedback-icon">✗</div>' +
-        '<div class="feedback-text">' + wrongText + '</div>';
-      App.addScore(25);
-    }
-
-    if (q.element) {
-      triggerDiscovery(q.element, null, false);
-    }
-
-    feedbackDiv.style.display = 'block';
-
-    const continueBtn = document.createElement('button');
-    continueBtn.className = 'btn-continue';
-    continueBtn.textContent = 'Continue →';
-    continueBtn.addEventListener('click', () => {
-      choiceIndex++;
-      renderCurrentChoice();
-      if (currentEra && currentEra.type === 'choice' && choiceIndex < (currentEra.questions || []).length) {
-        startChoiceTimer();
-      }
-    });
-    feedbackDiv.appendChild(continueBtn);
-    feedbackDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  }
-
-  // Patch dial change handler
-  onDialChange = onDialChangeWithProximity;
-  // Patch markEraComplete
-  markEraComplete = markEraCompleteEnhanced;
-  // Patch handleChoiceAnswer
-  handleChoiceAnswer = handleChoiceAnswerWithBonus;
 
   // === SLIDER CONTEXT LABELS ===
   function addSliderContextLabels() {
