@@ -254,6 +254,7 @@ const RECIPES = [
   { inputs: ['quantum_spin', 'electron_shell'], output: 'pauli_exclusion' },
   { inputs: ['quantum_spin', 'quantum_spin'], output: 'pauli_exclusion' },
   { inputs: ['electron_pair', 'quantum_numbers'], output: 'pauli_exclusion' },
+  { inputs: ['quantum_spin', 'electron'], output: 'pauli_exclusion' },
 
   // Quantum Numbers
   { inputs: ['electron_shell', 'quantum_spin'], output: 'quantum_numbers' },

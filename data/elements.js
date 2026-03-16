@@ -1278,9 +1278,9 @@ const STARTING_ELEMENTS = [
 const ERAS = {
   1: { name: 'Fundamental Particles', color: '#00e5ff', unlockThreshold: 0 },
   2: { name: 'Composite Particles', color: '#00e676', unlockThreshold: 0 },
-  3: { name: 'Atoms & Nuclear Physics', color: '#ffd740', unlockThreshold: 10 },
-  4: { name: 'Quantum Phenomena', color: '#d500f9', unlockThreshold: 22 },
-  5: { name: 'Advanced & Applied', color: '#ff5252', unlockThreshold: 40 },
+  3: { name: 'Atoms & Nuclear Physics', color: '#ffd740', unlockThreshold: 8 },
+  4: { name: 'Quantum Phenomena', color: '#d500f9', unlockThreshold: 15 },
+  5: { name: 'Advanced & Applied', color: '#ff5252', unlockThreshold: 30 },
   6: { name: 'Hidden Discoveries', color: '#ffd700', unlockThreshold: 0 }  // No threshold — found by experimentation
 };
 

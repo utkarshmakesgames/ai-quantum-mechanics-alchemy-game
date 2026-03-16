@@ -35,7 +35,11 @@
     pinned: [],
     settings: { theme: 'dark' },
     firstTime: true,
-    tutorialStep: 0  // 0=not started, 1-6=active, 7=complete
+    tutorialStep: 0,  // 0=not started, 1-6=active, 7=complete
+    qeSpent: 0,
+    autoCraftRecipes: [],
+    forgeShieldCharges: 0,
+    revealedHints: []
   };
 
   // UI state (not saved)
@@ -183,7 +187,11 @@
           inventory: parsed.inventory || {},
           mastery: parsed.mastery || {},
           achievements: parsed.achievements || [],
-          pinned: parsed.pinned || []
+          pinned: parsed.pinned || [],
+          qeSpent: parsed.qeSpent || 0,
+          autoCraftRecipes: parsed.autoCraftRecipes || [],
+          forgeShieldCharges: parsed.forgeShieldCharges || 0,
+          revealedHints: parsed.revealedHints || []
         };
         // Migrate old saves: firstTime boolean → tutorialStep
         if (typeof state.tutorialStep === 'undefined') {
@@ -355,6 +363,31 @@
       }
     }
 
+    // combineHint tooltip
+    if (el.combineHint) {
+      card.setAttribute('data-hint', el.combineHint);
+    }
+
+    // Quick recraft button for zero-stock elements
+    if (options.showStock !== false && !isFundamental(elementId) && !isConceptual(elementId)) {
+      const stock = getStock(elementId);
+      if (stock <= 0 && hasKnownRecipe(elementId)) {
+        const recraftBtn = document.createElement('button');
+        recraftBtn.className = 'quick-recraft-btn';
+        recraftBtn.innerHTML = '&#x21BB;';
+        recraftBtn.title = 'Quick recraft';
+        recraftBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (quickRecraft(elementId)) {
+            renderElementGrid();
+            updateTopBar();
+            saveGame();
+          }
+        });
+        card.appendChild(recraftBtn);
+      }
+    }
+
     card.addEventListener('click', () => clickHandler(elementId));
 
     // Long-press to pin (mobile touch support)
@@ -519,11 +552,17 @@
     // Filter discovered elements
     let pool = [...state.discovered];
 
-    // Apply search filter
+    // Apply search filter (enhanced: search by name, role, category, combineHint, era)
     if (search) {
       pool = pool.filter(id => {
         const el = ELEMENTS[id];
-        return el && (el.name.toLowerCase().includes(search) || id.includes(search));
+        if (!el) return false;
+        return el.name.toLowerCase().includes(search)
+          || id.includes(search)
+          || (el.role && el.role.toLowerCase().includes(search))
+          || (el.category && el.category.toLowerCase().includes(search))
+          || (el.combineHint && el.combineHint.toLowerCase().includes(search))
+          || ('era ' + el.era).includes(search);
       });
     }
 
@@ -667,7 +706,8 @@
     threeSlotMode = enable;
     const slot3 = document.getElementById('slot-3');
     const plus3 = document.getElementById('forge-plus-3');
-    const toggleBtn = document.getElementById('btn-toggle-slots');
+    const btn2 = document.getElementById('slot-mode-2');
+    const btn3 = document.getElementById('slot-mode-3');
     if (!slot3 || !plus3) return;
 
     if (enable) {
@@ -675,14 +715,16 @@
       slot3.style.display = '';
       plus3.classList.add('slot3-enter');
       slot3.classList.add('slot3-enter');
-      if (toggleBtn) toggleBtn.textContent = '2-Slot';
+      if (btn2) btn2.classList.remove('active');
+      if (btn3) btn3.classList.add('active');
     } else {
       plus3.style.display = 'none';
       slot3.style.display = 'none';
       plus3.classList.remove('slot3-enter');
       slot3.classList.remove('slot3-enter');
       slot3Element = null;
-      if (toggleBtn) toggleBtn.textContent = '3-Slot';
+      if (btn2) btn2.classList.add('active');
+      if (btn3) btn3.classList.remove('active');
     }
   }
 
@@ -700,6 +742,25 @@
       combineBtn.disabled = !(slot1Element && slot2Element && slot3Element);
     } else {
       combineBtn.disabled = !(slot1Element && slot2Element);
+    }
+
+    // Clear forge button visibility
+    const clearBtn = document.getElementById('btn-clear-forge');
+    if (clearBtn) {
+      clearBtn.style.display = (slot1Element || slot2Element || slot3Element) ? 'inline-block' : 'none';
+    }
+
+    // Forge hint (combineHint) when one slot filled
+    const forgeHint = document.getElementById('forge-hint');
+    const singleElement = slot1Element && !slot2Element ? slot1Element
+                        : slot2Element && !slot1Element ? slot2Element : null;
+    if (forgeHint) {
+      if (singleElement && ELEMENTS[singleElement] && ELEMENTS[singleElement].combineHint) {
+        forgeHint.style.display = 'flex';
+        forgeHint.innerHTML = '<span class="forge-hint-icon">&#x1F4A1;</span><span>' + ELEMENTS[singleElement].combineHint + '</span>';
+      } else {
+        forgeHint.style.display = 'none';
+      }
     }
 
     // Update forge preview
@@ -1074,11 +1135,30 @@
     }
     for (const [id, count] of Object.entries(needed)) {
       if (shouldConsume(id) && getStock(id) < count) {
-        offerRecraft(id);
-        return;
+        // Try auto-craft if token exists
+        const recipeKey = [...inputs].sort().join('|');
+        if ((state.autoCraftRecipes || []).includes(recipeKey) || (state.autoCraftRecipes || []).some(k => k.split('|').includes(id))) {
+          if (quickRecraft(id)) {
+            renderElementGrid();
+            updateTopBar();
+            saveGame();
+            // Retry after recraft
+          } else {
+            offerRecraft(id);
+            return;
+          }
+        } else {
+          offerRecraft(id);
+          return;
+        }
       }
     }
 
+    // Animate then process
+    playCombineSequence(() => processCombineResult(inputs));
+  }
+
+  function processCombineResult(inputs) {
     const pairKey = [...inputs].sort().join('|');
     const alreadyTried = state.triedPairs && state.triedPairs.includes(pairKey);
     state.stats.totalCombinations++;
@@ -1146,7 +1226,7 @@
           totalQE += awardQE(newDiscoveries[i], true);
         }
 
-        updateStability(5);
+        updateStability(10);
         playCombineAnimation('discovery');
 
         resultEl.className = 'forge-result success';
@@ -1173,7 +1253,7 @@
 
         updateStreak(true);
         totalQE = awardQE(results[0], false);
-        updateStability(5);
+        updateStability(10);
         playCombineAnimation('known');
 
         resultEl.className = 'forge-result already';
@@ -1212,8 +1292,13 @@
     // Streak broken
     updateStreak(false);
 
-    // Stability loss
-    updateStability(-15);
+    // Stability loss (reduced from -15 for better experimentation)
+    if (state.forgeShieldCharges > 0) {
+      state.forgeShieldCharges--;
+      showForgeMessage('Forge Shield absorbed the instability! (' + state.forgeShieldCharges + ' charges left)', 'already');
+    } else {
+      updateStability(-10);
+    }
 
     // Animation
     playCombineAnimation('fail');
@@ -1267,23 +1352,31 @@
   }
 
   function startDecoherence() {
-    const overlay = document.getElementById('decoherence-overlay');
-    const countdown = document.getElementById('decoherence-countdown');
-    overlay.style.display = 'flex';
+    const combineBtn = document.getElementById('btn-combine');
+    const clearBtn = document.getElementById('btn-clear-forge');
     SFX.play('decoherence');
 
-    let remaining = 30;
-    countdown.textContent = remaining;
+    let remaining = 10;
+    // Forge-only lockout: disable combine button, show countdown on it
+    if (combineBtn) {
+      combineBtn.disabled = true;
+      combineBtn.textContent = 'Cooling... ' + remaining + 's';
+      combineBtn.classList.add('decoherence-active');
+    }
 
     decoherenceTimer = setInterval(() => {
       remaining--;
-      countdown.textContent = remaining;
+      if (combineBtn) combineBtn.textContent = 'Cooling... ' + remaining + 's';
       if (remaining <= 0) {
         clearInterval(decoherenceTimer);
         decoherenceTimer = null;
-        overlay.style.display = 'none';
-        state.stats.stabilityMeter = 50; // Recover to 50%
+        state.stats.stabilityMeter = 70; // Recover to 70%
+        if (combineBtn) {
+          combineBtn.textContent = 'Combine';
+          combineBtn.classList.remove('decoherence-active');
+        }
         updateStabilityDisplay();
+        updateForgeSlots();
         saveGame();
       }
     }, 1000);
@@ -1764,6 +1857,9 @@
     };
 
     showModal('discovery-modal');
+
+    // Enhanced celebration
+    playDiscoveryCelebration(elementId, qeEarned);
   }
 
   function getNextCombosFor(elementId) {
@@ -2562,6 +2658,403 @@
   }
 
   // ============================================================
+  // QUICK RECRAFT
+  // ============================================================
+  function hasKnownRecipe(elementId) {
+    const recipes = getRecipesFor(elementId);
+    return recipes.some(inputs => inputs.every(id => state.discovered.includes(id)));
+  }
+
+  function quickRecraft(elementId, depth) {
+    depth = depth || 0;
+    if (depth > 2) return false;
+    if (getStock(elementId) > 0) return true;
+    if (isFundamental(elementId) || isConceptual(elementId)) return true;
+
+    const recipes = getRecipesFor(elementId);
+    for (const inputs of recipes) {
+      if (!inputs.every(id => state.discovered.includes(id))) continue;
+
+      let canCraft = true;
+      for (const inputId of inputs) {
+        if (shouldConsume(inputId) && getStock(inputId) < 1) {
+          if (!quickRecraft(inputId, depth + 1)) {
+            canCraft = false;
+            break;
+          }
+        }
+      }
+
+      if (canCraft) {
+        const needed = {};
+        for (const id of inputs) needed[id] = (needed[id] || 0) + 1;
+        for (const [id, count] of Object.entries(needed)) removeStock(id, count);
+
+        addStock(elementId, 1);
+        updateMastery(elementId);
+        state.stats.totalCombinations++;
+        state.stats.successfulCombinations++;
+
+        showQuickRecraftToast(elementId);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function showQuickRecraftToast(elementId) {
+    const el = ELEMENTS[elementId];
+    if (!el) return;
+    const toast = document.createElement('div');
+    toast.className = 'recraft-toast';
+    toast.innerHTML = '+1 <span style="color:' + el.color + '">' + el.name + '</span>';
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 1500);
+  }
+
+  // ============================================================
+  // SEARCH FILTER (era/category buttons)
+  // ============================================================
+  let searchCategory = 'all'; // 'all' | era number | category name
+
+  function applySearchFilters(pool, search) {
+    if (search) {
+      pool = pool.filter(id => {
+        const el = ELEMENTS[id];
+        if (!el) return false;
+        const s = search.toLowerCase();
+        return el.name.toLowerCase().includes(s)
+          || id.includes(s)
+          || (el.role && el.role.toLowerCase().includes(s))
+          || (el.category && el.category.toLowerCase().includes(s))
+          || (el.combineHint && el.combineHint.toLowerCase().includes(s))
+          || ('era ' + el.era).includes(s);
+      });
+    }
+    if (searchCategory !== 'all') {
+      const eraNum = parseInt(searchCategory);
+      if (!isNaN(eraNum)) {
+        pool = pool.filter(id => ELEMENTS[id] && ELEMENTS[id].era === eraNum);
+      } else {
+        pool = pool.filter(id => ELEMENTS[id] && ELEMENTS[id].category === searchCategory);
+      }
+    }
+    return pool;
+  }
+
+  // ============================================================
+  // FORGE COMBINE ANIMATION SEQUENCE
+  // ============================================================
+  function playCombineSequence(callback) {
+    const s1 = document.getElementById('slot-1');
+    const s2 = document.getElementById('slot-2');
+    const s3 = document.getElementById('slot-3');
+    const glow = document.getElementById('forge-glow');
+
+    s1.classList.add('converge');
+    s2.classList.add('converge');
+    if (threeSlotMode && s3) s3.classList.add('converge');
+
+    setTimeout(() => {
+      if (glow) glow.classList.add('active');
+    }, 200);
+
+    setTimeout(() => {
+      s1.classList.remove('converge');
+      s2.classList.remove('converge');
+      if (s3) s3.classList.remove('converge');
+      if (glow) glow.classList.remove('active');
+      callback();
+    }, 600);
+  }
+
+  // ============================================================
+  // QUANTUM LAB (QE Store)
+  // ============================================================
+  const LAB_ITEMS = [
+    { id: 'stability_boost', name: 'Stability Boost', cost: 25, icon: '🛡️',
+      desc: 'Restore forge stability to 100%',
+      action: function() {
+        state.stats.stabilityMeter = 100;
+        updateStabilityDisplay();
+        return 'Stability restored to 100%!';
+      }
+    },
+    { id: 'element_hint', name: 'Element Hint', cost: 50, icon: '🔍',
+      desc: 'Reveal one undiscovered recipe',
+      action: function() { return 'pick_element_hint'; }
+    },
+    { id: 'auto_craft', name: 'Auto-Craft Token', cost: 30, icon: '⚙️',
+      desc: 'Auto-recraft one recipe when out of stock',
+      action: function() { return 'pick_auto_craft'; }
+    },
+    { id: 'combo_reveal', name: 'Combo Reveal', cost: 75, icon: '📊',
+      desc: 'Reveal all recipes for one element',
+      action: function() { return 'pick_combo_reveal'; }
+    },
+    { id: 'era_scout', name: 'Era Scout', cost: 100, icon: '🔭',
+      desc: 'Scout undiscovered elements in an era + one recipe hint',
+      action: function() { return 'pick_era_scout'; }
+    },
+    { id: 'forge_shield', name: 'Forge Shield', cost: 40, icon: '🔰',
+      desc: 'Next 5 failed combos cost 0 stability',
+      action: function() {
+        state.forgeShieldCharges += 5;
+        return 'Forge Shield activated! ' + state.forgeShieldCharges + ' charges remaining.';
+      }
+    }
+  ];
+
+  function showQuantumLab() {
+    const modal = document.getElementById('quantum-lab-modal');
+    const balanceEl = document.getElementById('lab-qe-balance');
+    const itemsEl = document.getElementById('lab-items');
+    const feedbackEl = document.getElementById('lab-feedback');
+
+    balanceEl.textContent = state.stats.quantumEnergy.toLocaleString();
+    feedbackEl.style.display = 'none';
+    itemsEl.innerHTML = '';
+
+    for (const item of LAB_ITEMS) {
+      const div = document.createElement('div');
+      div.className = 'lab-item' + (state.stats.quantumEnergy < item.cost ? ' disabled' : '');
+      div.innerHTML = '<span class="lab-icon">' + item.icon + '</span>' +
+        '<div class="lab-info"><strong>' + item.name + '</strong><p>' + item.desc + '</p></div>' +
+        '<button class="btn btn-lab-buy" data-item="' + item.id + '">' + item.cost + ' QE</button>';
+      itemsEl.appendChild(div);
+
+      div.querySelector('.btn-lab-buy').addEventListener('click', () => purchaseLabItem(item));
+    }
+
+    showModal('quantum-lab-modal');
+  }
+
+  function purchaseLabItem(item) {
+    if (state.stats.quantumEnergy < item.cost) return;
+
+    const result = item.action();
+
+    if (typeof result === 'string' && result.startsWith('pick_')) {
+      // Needs element picker
+      const mode = result.substring(5);
+      hideModal('quantum-lab-modal');
+      showElementPicker(mode, item.cost);
+      return;
+    }
+
+    state.stats.quantumEnergy -= item.cost;
+    state.qeSpent = (state.qeSpent || 0) + item.cost;
+
+    const feedbackEl = document.getElementById('lab-feedback');
+    feedbackEl.style.display = 'block';
+    feedbackEl.textContent = result;
+    feedbackEl.className = 'lab-feedback success';
+
+    document.getElementById('lab-qe-balance').textContent = state.stats.quantumEnergy.toLocaleString();
+    updateTopBar();
+    saveGame();
+
+    // Refresh item states
+    showQuantumLab();
+  }
+
+  function showElementPicker(mode, cost) {
+    const modal = document.getElementById('element-picker-modal');
+    const title = document.getElementById('picker-title');
+    const grid = document.getElementById('picker-grid');
+    grid.innerHTML = '';
+
+    if (mode === 'element_hint') {
+      title.textContent = 'Choose an element to investigate';
+      for (const id of state.discovered) {
+        const el = ELEMENTS[id];
+        if (!el) continue;
+        // Only show elements that have undiscovered recipes
+        const hints = RECIPES_BY_INPUT[id] || [];
+        const hasUndiscovered = hints.some(h =>
+          h.partners.every(p => state.discovered.includes(p)) && anyResultUndiscovered(h.result)
+        );
+        if (!hasUndiscovered) continue;
+
+        const card = document.createElement('div');
+        card.className = 'picker-card';
+        card.innerHTML = '<span style="color:' + el.color + '">' + el.symbol + '</span><span>' + el.name + '</span>';
+        card.addEventListener('click', () => {
+          state.stats.quantumEnergy -= cost;
+          state.qeSpent = (state.qeSpent || 0) + cost;
+          state.revealedHints = state.revealedHints || [];
+          state.revealedHints.push(id);
+
+          // Find one undiscovered recipe
+          for (const h of hints) {
+            if (h.partners.every(p => state.discovered.includes(p)) && anyResultUndiscovered(h.result)) {
+              const partnerNames = h.partners.map(p => ELEMENTS[p].name).join(' + ');
+              hideModal('element-picker-modal');
+              const resultEl = document.getElementById('forge-result');
+              resultEl.style.display = 'block';
+              resultEl.className = 'forge-result recraft';
+              resultEl.innerHTML = '<div class="result-text">Research suggests: <strong style="color:' + el.color + '">' + el.name + '</strong> + ' + partnerNames + ' produces something new...</div>';
+              break;
+            }
+          }
+          updateTopBar();
+          saveGame();
+        });
+        grid.appendChild(card);
+      }
+    } else if (mode === 'auto_craft') {
+      title.textContent = 'Choose a recipe to automate';
+      const seen = new Set();
+      for (const id of state.discovered) {
+        const recipes = getRecipesFor(id);
+        for (const inputs of recipes) {
+          if (!inputs.every(i => state.discovered.includes(i))) continue;
+          const key = [...inputs].sort().join('|');
+          if (seen.has(key)) continue;
+          if ((state.autoCraftRecipes || []).includes(key)) continue;
+          seen.add(key);
+
+          const card = document.createElement('div');
+          card.className = 'picker-card';
+          const inputNames = inputs.map(i => ELEMENTS[i].name).join(' + ');
+          card.innerHTML = '<span>' + inputNames + ' → ' + ELEMENTS[id].name + '</span>';
+          card.addEventListener('click', () => {
+            state.stats.quantumEnergy -= cost;
+            state.qeSpent = (state.qeSpent || 0) + cost;
+            if (!state.autoCraftRecipes) state.autoCraftRecipes = [];
+            state.autoCraftRecipes.push(key);
+            hideModal('element-picker-modal');
+            showForgeMessage('Auto-Craft enabled for ' + ELEMENTS[id].name + '!', 'already');
+            updateTopBar();
+            saveGame();
+          });
+          grid.appendChild(card);
+        }
+      }
+    } else if (mode === 'combo_reveal') {
+      title.textContent = 'Choose an element to scan';
+      for (const id of state.discovered) {
+        const el = ELEMENTS[id];
+        if (!el) continue;
+        const card = document.createElement('div');
+        card.className = 'picker-card';
+        card.innerHTML = '<span style="color:' + el.color + '">' + el.symbol + '</span><span>' + el.name + '</span>';
+        card.addEventListener('click', () => {
+          state.stats.quantumEnergy -= cost;
+          state.qeSpent = (state.qeSpent || 0) + cost;
+          hideModal('element-picker-modal');
+
+          // Reveal all recipes using this element
+          const hints = RECIPES_BY_INPUT[id] || [];
+          let html = '<strong style="color:' + el.color + '">Combo Reveal: ' + el.name + '</strong><br>';
+          for (const h of hints) {
+            const results = resultToArray(h.result);
+            const resultNames = results.map(r => state.discovered.includes(r) ? ELEMENTS[r].name : '???').join(' + ');
+            const partnerNames = h.partners.map(p => state.discovered.includes(p) ? ELEMENTS[p].name : '???').join(' + ');
+            html += el.name + ' + ' + partnerNames + ' → ' + resultNames + '<br>';
+          }
+          const resultEl = document.getElementById('forge-result');
+          resultEl.style.display = 'block';
+          resultEl.className = 'forge-result recraft';
+          resultEl.innerHTML = '<div class="result-text">' + html + '</div>';
+          updateTopBar();
+          saveGame();
+        });
+        grid.appendChild(card);
+      }
+    } else if (mode === 'era_scout') {
+      title.textContent = 'Choose an era to scout';
+      for (let era = 1; era <= 5; era++) {
+        const eraInfo = ERAS[era];
+        const card = document.createElement('div');
+        card.className = 'picker-card';
+        const total = Object.values(ELEMENTS).filter(e => e.era === era).length;
+        const found = state.discovered.filter(id => ELEMENTS[id] && ELEMENTS[id].era === era).length;
+        card.innerHTML = '<span style="color:' + eraInfo.color + '">Era ' + era + '</span><span>' + eraInfo.name + ' (' + found + '/' + total + ')</span>';
+        card.addEventListener('click', () => {
+          state.stats.quantumEnergy -= cost;
+          state.qeSpent = (state.qeSpent || 0) + cost;
+          hideModal('element-picker-modal');
+
+          // Count undiscovered per category in this era
+          const undiscovered = Object.values(ELEMENTS).filter(e => e.era === era && !state.discovered.includes(e.id));
+          const cats = {};
+          for (const e of undiscovered) {
+            cats[e.category] = (cats[e.category] || 0) + 1;
+          }
+          let html = '<strong style="color:' + eraInfo.color + '">Era ' + era + ' Scout Report</strong><br>';
+          html += undiscovered.length + ' elements remaining:<br>';
+          for (const [cat, count] of Object.entries(cats)) {
+            html += '• ' + cat + ': ' + count + ' undiscovered<br>';
+          }
+          // One recipe hint
+          for (const e of undiscovered) {
+            const recipes = getRecipesFor(e.id);
+            for (const inputs of recipes) {
+              if (inputs.every(i => state.discovered.includes(i))) {
+                const names = inputs.map(i => ELEMENTS[i].name).join(' + ');
+                html += '<br>Hint: Try ' + names + '...';
+                break;
+              }
+            }
+            if (html.includes('Hint:')) break;
+          }
+          const resultEl = document.getElementById('forge-result');
+          resultEl.style.display = 'block';
+          resultEl.className = 'forge-result recraft';
+          resultEl.innerHTML = '<div class="result-text">' + html + '</div>';
+          updateTopBar();
+          saveGame();
+        });
+        grid.appendChild(card);
+      }
+    }
+
+    showModal('element-picker-modal');
+  }
+
+  // ============================================================
+  // DISCOVERY CELEBRATION (enhanced particles + QE counter animation)
+  // ============================================================
+  function playDiscoveryCelebration(elementId, qeEarned) {
+    const el = ELEMENTS[elementId];
+    if (!el) return;
+
+    // Particle burst in element's color
+    spawnColoredParticles(30, el.color);
+
+    // QE counter animate-up
+    const qeAmountEl = document.getElementById('qe-amount');
+    if (qeAmountEl) {
+      qeAmountEl.classList.add('qe-animate-up');
+      setTimeout(() => qeAmountEl.classList.remove('qe-animate-up'), 600);
+    }
+  }
+
+  function spawnColoredParticles(count, color) {
+    const container = document.getElementById('particle-shower');
+    if (!container) return;
+
+    for (let i = 0; i < count; i++) {
+      const particle = document.createElement('span');
+      particle.className = 'particle celebration-particle';
+      particle.style.left = (30 + Math.random() * 40) + '%';
+      particle.style.top = (30 + Math.random() * 20) + '%';
+      particle.style.setProperty('--dx', (Math.random() * 300 - 150) + 'px');
+      particle.style.setProperty('--dy', (Math.random() * -300 - 50) + 'px');
+      particle.style.background = color;
+      particle.style.boxShadow = '0 0 6px ' + color;
+      particle.style.animationDuration = (0.6 + Math.random() * 0.6) + 's';
+      particle.style.animationDelay = (Math.random() * 0.3) + 's';
+      container.appendChild(particle);
+    }
+
+    setTimeout(() => {
+      container.querySelectorAll('.celebration-particle').forEach(p => p.remove());
+    }, 2000);
+  }
+
+  // ============================================================
   // INITIALIZATION
   // ============================================================
   function startGame(isNewGame) {
@@ -2752,13 +3245,30 @@
         renderElementGrid();
       }
     });
-    document.getElementById('btn-toggle-slots').addEventListener('click', () => {
+    // Segmented slot mode selector
+    document.getElementById('slot-mode-2').addEventListener('click', () => {
       if (threeSlotMode) {
         setThreeSlotMode(false);
-      } else {
-        setThreeSlotMode(true);
+        updateForgeSlots();
       }
+    });
+    document.getElementById('slot-mode-3').addEventListener('click', () => {
+      if (!threeSlotMode) {
+        setThreeSlotMode(true);
+        updateForgeSlots();
+      }
+    });
+
+    // Clear forge button
+    document.getElementById('btn-clear-forge').addEventListener('click', () => {
+      slot1Element = null;
+      slot2Element = null;
+      slot3Element = null;
+      selectedSlot = 1;
+      batchCount = 1;
       updateForgeSlots();
+      renderElementGrid();
+      document.getElementById('forge-result').style.display = 'none';
     });
 
     // Filters
@@ -2869,6 +3379,36 @@
     const achievementsCloseBtn = document.getElementById('btn-achievements-close');
     if (achievementsCloseBtn) {
       achievementsCloseBtn.addEventListener('click', () => hideModal('achievements-modal'));
+    }
+
+    // ---- Escape key closes modals (skip tutorial/intro) ----
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        document.querySelectorAll('.modal').forEach(m => {
+          if (m.id === 'intro-modal') return; // don't skip tutorial
+          if (m.style.display === 'flex' || m.style.display === 'block') {
+            m.style.display = 'none';
+          }
+        });
+      }
+    });
+
+    // ---- QE counter opens Quantum Lab ----
+    const qeCounter = document.getElementById('qe-counter');
+    if (qeCounter) {
+      qeCounter.addEventListener('click', () => {
+        if (activeScreen === 'game') showQuantumLab();
+      });
+    }
+
+    // ---- Quantum Lab modal ----
+    const labCloseBtn = document.getElementById('btn-lab-close');
+    if (labCloseBtn) {
+      labCloseBtn.addEventListener('click', () => hideModal('quantum-lab-modal'));
+    }
+    const pickerCancelBtn = document.getElementById('btn-picker-cancel');
+    if (pickerCancelBtn) {
+      pickerCancelBtn.addEventListener('click', () => hideModal('element-picker-modal'));
     }
 
     // ---- Modal backdrops close modals ----

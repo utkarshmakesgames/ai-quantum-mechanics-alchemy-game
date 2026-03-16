@@ -47,7 +47,7 @@
         <span class="game-title-small">Quantum Forge</span>
       </div>
       <div class="top-bar-center">
-        <div class="qe-counter">
+        <div class="qe-counter" id="qe-counter" title="Click to open Quantum Lab" style="cursor:pointer;">
           <span class="qe-label">QE</span>
           <span id="qe-amount" class="qe-amount">0</span>
         </div>
@@ -115,7 +115,12 @@
         <!-- The Forge -->
         <div id="forge-area" class="forge-area">
           <h2 class="forge-title">The Forge</h2>
-          <button id="btn-toggle-slots" class="btn btn-tiny btn-slot-toggle" title="Toggle 3-slot mode for 3-quark recipes">3-Slot</button>
+          <div class="slot-mode-selector">
+            <button class="slot-mode-btn active" data-mode="2" id="slot-mode-2">2 Slots</button>
+            <button class="slot-mode-btn" data-mode="3" id="slot-mode-3">3 Slots</button>
+          </div>
+          <button id="btn-clear-forge" class="btn btn-clear" title="Clear all slots" style="display:none;">&#x2715;</button>
+          <div id="forge-glow" class="forge-glow"></div>
           <div class="forge-slots">
             <div id="slot-1" class="forge-slot" data-slot="1">
               <span class="slot-placeholder">Select an element</span>
@@ -465,6 +470,34 @@
       <div id="challenge-complete-stats" class="challenge-stats"></div>
       <p id="challenge-complete-teaches" class="challenge-teaches"></p>
       <button id="btn-challenge-complete-ok" class="btn btn-primary">Back to Challenges</button>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- QUANTUM LAB MODAL -->
+  <!-- ============================================================ -->
+  <div id="quantum-lab-modal" class="modal" style="display:none;">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content quantum-lab-content">
+      <h2>Quantum Lab</h2>
+      <div class="lab-balance">Balance: <span id="lab-qe-balance">0</span> QE</div>
+      <div id="lab-items" class="lab-items">
+        <!-- Items populated by JS -->
+      </div>
+      <div id="lab-feedback" class="lab-feedback" style="display:none;"></div>
+      <button id="btn-lab-close" class="btn btn-primary" style="margin-top:16px;">Close</button>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- ELEMENT PICKER MODAL (for Lab items that need element selection) -->
+  <!-- ============================================================ -->
+  <div id="element-picker-modal" class="modal" style="display:none;">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content element-picker-content">
+      <h2 id="picker-title">Choose an Element</h2>
+      <div id="picker-grid" class="picker-grid"></div>
+      <button id="btn-picker-cancel" class="btn btn-secondary" style="margin-top:12px;">Cancel</button>
     </div>
   </div>
 
