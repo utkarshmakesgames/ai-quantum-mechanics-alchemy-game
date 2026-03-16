@@ -3387,15 +3387,28 @@
       achievementsCloseBtn.addEventListener('click', () => hideModal('achievements-modal'));
     }
 
-    // ---- Escape key closes modals (skip tutorial/intro) ----
+    // ---- Escape key closes modals + returns from Journal/Challenge screens ----
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
+        // Close modals first
+        let closedModal = false;
         document.querySelectorAll('.modal').forEach(m => {
-          if (m.id === 'intro-modal') return; // don't skip tutorial
+          if (m.id === 'intro-modal') return;
           if (m.style.display === 'flex' || m.style.display === 'block') {
             m.style.display = 'none';
+            closedModal = true;
           }
         });
+        // If no modal was closed, check if we're on a sub-screen
+        if (!closedModal) {
+          if (activeScreen === 'journal') {
+            showScreen(challengeMode ? 'challenge-play' : 'game');
+          } else if (activeScreen === 'challenge') {
+            showScreen('game');
+            renderElementGrid();
+            updateTopBar();
+          }
+        }
       }
     });
 
