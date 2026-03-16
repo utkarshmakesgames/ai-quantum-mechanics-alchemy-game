@@ -718,6 +718,7 @@ body {
 /* SCORE DISPLAY                                                 */
 /* ============================================================ */
 .score-display {
+  position: relative;
   font-size: 0.9rem;
   font-weight: 600;
   color: var(--accent-gold);

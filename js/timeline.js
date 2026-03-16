@@ -62,6 +62,8 @@ const Timeline = (function() {
       }
       map.appendChild(item);
     }
+
+    renderEraStars();
   }
 
   function loadEra(index) {
@@ -404,9 +406,8 @@ const Timeline = (function() {
     `;
     popup.classList.add('show');
 
-    // No auto-hide — stays until dismissed
+    // No auto-hide — stays until dismissed via dismiss button only
     clearTimeout(popup._hideTimer);
-    popup.addEventListener('click', () => popup.classList.remove('show'), { once: true });
   }
 
   function renderDiscoveryList() {

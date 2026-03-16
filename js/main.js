@@ -12,14 +12,14 @@ const App = (function() {
       currentEra: 0,      // 0 = not started, 1-8 = era index
       completedEras: [],   // era IDs that are done
       discoveries: [],     // element IDs discovered in story mode
-      totalScore: 0
+      totalScore: 0,
+      eraStars: {}         // { eraIndex: 1-3 }
     },
     sandboxDiscovered: [], // elements available in sandbox (unlocked by story)
     sandboxInventory: {},  // { elementId: count }
     settings: {
       muted: false
-    },
-    eraStars: {}  // { eraIndex: 1-3 }
+    }
   };
 
   function init() {
@@ -75,6 +75,7 @@ const App = (function() {
         showScreen('title');
         Timeline.stop();
         Particles.stop();
+        updateMenuProgress();
       });
     });
 
