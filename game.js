@@ -1165,6 +1165,12 @@
     if (!state.triedPairs) state.triedPairs = [];
     if (!state.triedPairs.includes(pairKey)) state.triedPairs.push(pairKey);
 
+    // Count how many of each input we need (was computed in handleCombine, need it here too)
+    const needed = {};
+    for (const id of inputs) {
+      needed[id] = (needed[id] || 0) + 1;
+    }
+
     const rawResult = tryCombine(inputs);
     const resultEl = document.getElementById('forge-result');
     resultEl.style.display = 'block';
