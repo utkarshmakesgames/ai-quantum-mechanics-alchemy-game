@@ -18,12 +18,14 @@ const App = (function() {
     sandboxInventory: {},  // { elementId: count }
     settings: {
       muted: false
-    }
+    },
+    eraStars: {}  // { eraIndex: 1-3 }
   };
 
   function init() {
     loadGame();
     setupEventListeners();
+    updateMenuProgress();
 
     // Start on title screen or resume mode
     if (state.mode === 'story') {
@@ -32,6 +34,20 @@ const App = (function() {
       switchMode('sandbox');
     } else {
       showScreen('title');
+    }
+  }
+
+  function updateMenuProgress() {
+    const storyProg = document.getElementById('story-progress-indicator');
+    if (storyProg) {
+      const completed = state.storyProgress.completedEras.length;
+      storyProg.textContent = completed + '/' + ERAS.length + ' Eras';
+    }
+    const sandboxProg = document.getElementById('sandbox-progress-indicator');
+    if (sandboxProg) {
+      const discovered = (state.sandboxDiscovered || []).length;
+      const total = Object.keys(ELEMENTS).length;
+      sandboxProg.textContent = discovered + '/' + total + ' Elements';
     }
   }
 

@@ -418,6 +418,27 @@ const RECIPES = [
 
   { inputs: ['schrodinger_cat', 'qubit'], output: 'cat_state' },
   { inputs: ['schrodinger_cat', 'entanglement'], output: 'cat_state' },
+
+  // ================================================================
+  // 3-INPUT RECIPES EXPANSION
+  // ================================================================
+  // Water from components (H + H + O)
+  { inputs: ['hydrogen', 'hydrogen', 'oxygen'], output: 'water' },
+
+  // Helium via stellar triple-alpha (He + He + He → Carbon)
+  { inputs: ['helium', 'helium', 'helium'], output: 'carbon' },
+
+  // Standard Model from 3 forces
+  { inputs: ['strong_force', 'weak_force', 'electromagnetic_force'], output: 'standard_model' },
+
+  // Quantum computer from 3 quantum concepts
+  { inputs: ['qubit', 'logic_gate', 'entanglement'], output: 'quantum_computer' },
+
+  // Nuclear reactor from 3 components
+  { inputs: ['uranium', 'neutron', 'water'], output: 'nuclear_reactor' },
+
+  // BEC from cooling atoms
+  { inputs: ['helium', 'absolute_zero', 'laser'], output: 'bose_einstein_condensate' },
 ];
 
 // Build a lookup map for fast recipe checking

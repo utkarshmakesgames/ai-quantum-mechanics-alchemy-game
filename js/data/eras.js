@@ -166,8 +166,8 @@ const ERAS = [
     name: 'Big Bang Nucleosynthesis',
     time: '3 minutes after the Big Bang',
     type: 'dials',
-    intro: 'The universe has cooled enough for protons and neutrons to fuse into light nuclei. But the window is narrow — too hot and nuclei shatter, too cool and fusion stops.',
-    goal: 'Find the fusion temperature window to forge the first elements.',
+    intro: 'The universe has cooled enough for protons and neutrons to fuse into light nuclei. Sweep the energy dial slowly to discover each element in sequence.',
+    goal: 'Sweep the energy dial to forge the first elements one by one.',
     physics: 'Quantum tunneling, Coulomb barrier, Big Bang nucleosynthesis',
     dials: {
       temperature: { label: 'Temperature', unit: 'K', min: 7, max: 11, step: 0.1, logScale: true },
@@ -175,32 +175,32 @@ const ERAS = [
     },
     discoveries: [
       {
+        id: 'lithium7',
+        name: 'Lithium-7',
+        conditions: { temperature: { min: 8.5, max: 9.5 }, energy: { min: 3.5, max: 4.4 } },
+        explanation: 'Tiny amounts of lithium-7 form at the tail end of nucleosynthesis. The predicted and observed amounts match — a triumph for Big Bang theory.',
+        element: 'lithium'
+      },
+      {
         id: 'deuterium',
         name: 'Deuterium',
-        conditions: { temperature: { min: 8.8, max: 9.5 }, energy: { min: 4.5 } },
+        conditions: { temperature: { min: 8.8, max: 9.5 }, energy: { min: 4.5, max: 5.2 } },
         explanation: 'Deuterium forms when a proton and neutron fuse. This is the first step of Big Bang nucleosynthesis. Quantum tunneling allows them to overcome the Coulomb barrier.',
         element: 'deuterium'
       },
       {
         id: 'helium3',
         name: 'Helium-3',
-        conditions: { temperature: { min: 9.0, max: 9.8 }, energy: { min: 5.0 } },
+        conditions: { temperature: { min: 8.8, max: 9.8 }, energy: { min: 5.3, max: 6.0 } },
         explanation: 'Helium-3 forms from deuterium fusion. Two protons and one neutron create this light isotope.',
         element: 'helium'
       },
       {
         id: 'helium4',
         name: 'Helium-4',
-        conditions: { temperature: { min: 8.5, max: 9.5 }, energy: { min: 5.5 } },
+        conditions: { temperature: { min: 8.5, max: 9.5 }, energy: { min: 6.1, max: 7.0 } },
         explanation: 'Helium-4 (two protons + two neutrons) is the most stable light nucleus. About 25% of the universe\'s mass ends up as helium — all forged in these first few minutes.',
         element: 'helium'
-      },
-      {
-        id: 'lithium7',
-        name: 'Lithium-7',
-        conditions: { temperature: { min: 8.2, max: 9.0 }, energy: { min: 6.0 } },
-        explanation: 'Tiny amounts of lithium-7 form at the tail end of nucleosynthesis. The predicted and observed amounts match — a triumph for Big Bang theory.',
-        element: 'lithium'
       }
     ],
     hints: [

@@ -11,6 +11,7 @@ const Sandbox = (function() {
   let slot3 = null;
   let threeSlotMode = false;
   let selectedSlot = 1;
+  let failedCombos = new Set();  // Track failed combos
 
   function init(state) {
     appState = state;
@@ -104,6 +105,10 @@ const Sandbox = (function() {
           <span class="sandbox-symbol" style="color:${el.color}">${el.symbol}</span>
           <span class="sandbox-name">${el.name}</span>
         `;
+        // combineHint tooltip
+        if (el.combineHint) {
+          card.setAttribute('data-hint', el.combineHint);
+        }
         card.addEventListener('click', () => selectElement(id));
         grid.appendChild(card);
       }
@@ -232,12 +237,16 @@ const Sandbox = (function() {
           showResult(resultEl, `New discovery: ${names.join(' + ')}!`, 'success');
         } else {
           Audio.play('combine');
-          showResult(resultEl, `Created: ${names.join(' + ')}`, 'known');
+          showResult(resultEl, `Already discovered: ${names.join(' + ')}`, 'already-known');
         }
       }
     } else {
       Audio.play('wrong');
+      // Track failed combo
+      const key = inputs.filter(Boolean).sort().join(' + ');
+      failedCombos.add(key);
       showResult(resultEl, 'No reaction.', 'failure');
+      renderFailedCombos();
     }
 
     clearSlots();
@@ -269,6 +278,44 @@ const Sandbox = (function() {
     const discovered = getAvailableElements().length;
     statsEl.textContent = `${discovered}/${total} elements • Score: ${appState.storyProgress.totalScore}`;
   }
+
+  function renderFailedCombos() {
+    const container = document.getElementById('sandbox-failed-combos');
+    if (!container) return;
+
+    const combos = [...failedCombos].slice(-10).reverse();
+    if (combos.length === 0) {
+      container.style.display = 'none';
+      return;
+    }
+
+    container.style.display = 'block';
+    container.innerHTML = '<h4>Failed Combos</h4>' +
+      combos.map(c => '<div class="failed-combo"><s>' + c.split(' + ').map(id => {
+        const el = ELEMENTS[id];
+        return el ? el.name : id;
+      }).join(' + ') + '</s></div>').join('');
+  }
+
+  function updateForgeHint() {
+    const hintEl = document.getElementById('sandbox-forge-hint');
+    if (!hintEl) return;
+
+    const active = slot1 && !slot2 ? slot1 : slot2 && !slot1 ? slot2 : null;
+    if (active && ELEMENTS[active] && ELEMENTS[active].combineHint) {
+      hintEl.style.display = 'block';
+      hintEl.textContent = ELEMENTS[active].combineHint;
+    } else {
+      hintEl.style.display = 'none';
+    }
+  }
+
+  // Patch updateSlots to include hint
+  const _origUpdateSlots = updateSlots;
+  updateSlots = function() {
+    _origUpdateSlots();
+    updateForgeHint();
+  };
 
   return { init };
 })();

@@ -222,5 +222,72 @@ const Particles = (function() {
     if (particles.length > 300) particles.splice(0, particles.length - 300);
   }
 
-  return { init, start, stop, setConfig, flash, burst, resize };
+  // Proximity-reactive behavior
+  let proximityValue = 0;
+
+  function setProximity(value) {
+    proximityValue = Math.max(0, Math.min(1, value));
+  }
+
+  // Enhanced update with proximity-based attraction
+  const _origUpdate = update;
+  update = function() {
+    const w = canvas.width / window.devicePixelRatio;
+    const h = canvas.height / window.devicePixelRatio;
+    const tempFactor = Math.log10(Math.max(config.temperature, 1)) / 15;
+    const cx = w / 2, cy = h / 2;
+
+    for (const p of particles) {
+      // Random brownian motion scaled by temperature
+      p.vx += (Math.random() - 0.5) * tempFactor * 0.3;
+      p.vy += (Math.random() - 0.5) * tempFactor * 0.3;
+
+      // Proximity-based attraction to center
+      if (proximityValue > 0.3) {
+        const dx = cx - p.x;
+        const dy = cy - p.y;
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+        const force = (proximityValue - 0.3) * 0.02;
+        p.vx += (dx / dist) * force;
+        p.vy += (dy / dist) * force;
+      }
+
+      // Glow/clustering at high proximity
+      if (proximityValue > 0.7) {
+        p.size = p._baseSize || p.size;
+        if (!p._baseSize) p._baseSize = p.size;
+        p.size = p._baseSize * (1 + (proximityValue - 0.7) * 2);
+      } else if (p._baseSize) {
+        p.size = p._baseSize;
+      }
+
+      // Snap to formation at very high proximity
+      if (proximityValue > 0.9) {
+        p.vx *= 0.95;
+        p.vy *= 0.95;
+      }
+
+      // Damping
+      p.vx *= 0.98;
+      p.vy *= 0.98;
+
+      p.x += p.vx;
+      p.y += p.vy;
+
+      // Bounce off walls
+      if (p.x < 0) { p.x = 0; p.vx = Math.abs(p.vx); }
+      if (p.x > w) { p.x = w; p.vx = -Math.abs(p.vx); }
+      if (p.y < 0) { p.y = 0; p.vy = Math.abs(p.vy); }
+      if (p.y > h) { p.y = h; p.vy = -Math.abs(p.vy); }
+
+      // Trail for photons
+      p.phase += 0.05;
+      if (p.type === 'photon') {
+        p.trail.push({ x: p.x, y: p.y });
+        if (p.trail.length > 8) p.trail.shift();
+      }
+    }
+  };
+
+  return { init, start, stop, setConfig, flash, burst, resize, setProximity };
 })();

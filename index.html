@@ -23,11 +23,13 @@
           <span class="mode-icon">🌌</span>
           <span class="mode-name">Story Mode</span>
           <span class="mode-desc">Experience the universe's evolution</span>
+          <span id="story-progress-indicator" class="mode-progress"></span>
         </button>
         <button id="btn-sandbox" class="mode-btn sandbox-btn">
           <span class="mode-icon">⚗️</span>
           <span class="mode-name">Sandbox</span>
           <span class="mode-desc">Free alchemy with discovered elements</span>
+          <span id="sandbox-progress-indicator" class="mode-progress"></span>
         </button>
       </div>
 
@@ -49,6 +51,7 @@
           <span id="era-time" class="era-time">10⁻¹² s after the Big Bang</span>
         </div>
         <div class="header-right">
+          <div class="score-display">Score: <span id="story-score">0</span></div>
           <button class="btn-mute btn-icon">🔊</button>
         </div>
       </header>
@@ -76,11 +79,15 @@
           <div id="dial-panel" class="panel" style="display:none">
             <h3 class="panel-title">Adjust Conditions</h3>
             <div id="dial-sliders" class="dial-sliders"></div>
+            <div id="proximity-feedback" class="proximity-feedback" style="display:none"></div>
             <div id="dial-hint" class="dial-hint" style="display:none"></div>
           </div>
 
           <!-- CHOICE PANEL -->
           <div id="choice-panel" class="panel" style="display:none">
+            <div id="choice-timer-bar" class="choice-timer-bar" style="display:none">
+              <div id="choice-timer-inner" class="choice-timer-inner"></div>
+            </div>
             <div id="choice-content" class="choice-content"></div>
             <div id="choice-feedback" class="choice-feedback" style="display:none"></div>
           </div>
@@ -95,6 +102,9 @@
 
       <!-- Discovery popup -->
       <div id="discovery-popup" class="discovery-popup"></div>
+
+      <!-- Era transition overlay -->
+      <div id="era-transition-overlay" class="era-transition-overlay"></div>
 
       <!-- Era complete banner -->
       <div id="era-complete-banner" class="era-complete-banner" style="display:none">
@@ -140,8 +150,10 @@
             <button id="sandbox-toggle-slots" class="btn-toggle">3-Slot</button>
           </div>
 
+          <div id="sandbox-forge-hint" class="sandbox-forge-hint" style="display:none"></div>
           <div id="sandbox-preview" class="sandbox-preview"></div>
           <div id="sandbox-result" class="sandbox-result" style="display:none"></div>
+          <div id="sandbox-failed-combos" class="sandbox-failed-combos" style="display:none"></div>
         </div>
 
         <!-- Element grid -->

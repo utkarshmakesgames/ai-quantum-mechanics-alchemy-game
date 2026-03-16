@@ -390,11 +390,12 @@ const Timeline = (function() {
       </div>
       <div class="discovery-explanation">${explanation || (journal && journal.text) || el.description || ''}</div>
       ${journal && journal.funFact ? `<div class="discovery-funfact">💡 ${journal.funFact}</div>` : ''}
+      <button class="discovery-dismiss" onclick="this.parentElement.classList.remove('show')">✕ Dismiss</button>
     `;
     popup.classList.add('show');
 
+    // No auto-hide — stays until dismissed
     clearTimeout(popup._hideTimer);
-    popup._hideTimer = setTimeout(() => popup.classList.remove('show'), 6000);
     popup.addEventListener('click', () => popup.classList.remove('show'), { once: true });
   }
 
@@ -535,6 +536,10 @@ const Timeline = (function() {
 
   function formatValue(value, unit) {
     const u = unit || '';
+    // For compound units containing '/', use scientific notation to avoid "31.6 Yparticles/m³"
+    if (u.includes('/')) {
+      return value.toExponential(1).replace('e+', ' × 10^').replace('e-', ' × 10^-') + ' ' + u;
+    }
     if (value >= 1e24) return (value / 1e24).toFixed(1) + ' Y' + u;
     if (value >= 1e21) return (value / 1e21).toFixed(1) + ' Z' + u;
     if (value >= 1e18) return (value / 1e18).toFixed(1) + ' E' + u;
@@ -547,6 +552,358 @@ const Timeline = (function() {
     if (value >= 1e-3) return (value * 1e3).toFixed(1) + ' m' + u;
     if (value >= 1e-6) return (value * 1e6).toFixed(1) + ' μ' + u;
     return value.toExponential(1) + ' ' + u;
+  }
+
+  // === SCORE DISPLAY ===
+  function updateScoreDisplay() {
+    const scoreEl = document.getElementById('story-score');
+    if (scoreEl && appState) {
+      scoreEl.textContent = appState.storyProgress.totalScore;
+    }
+  }
+
+  function showScoreFloat(points) {
+    const scoreEl = document.getElementById('story-score');
+    if (!scoreEl) return;
+    const float = document.createElement('span');
+    float.className = 'score-float';
+    float.textContent = '+' + points;
+    scoreEl.parentElement.appendChild(float);
+    setTimeout(() => float.remove(), 1200);
+  }
+
+  // Hook into App.addScore
+  const _origAddScore = App.addScore;
+  App.addScore = function(points) {
+    _origAddScore.call(App, points);
+    updateScoreDisplay();
+    showScoreFloat(points);
+  };
+
+  // === PROXIMITY FEEDBACK (dial eras) ===
+  function computeProximity() {
+    if (!currentEra || currentEra.type !== 'dials' || !currentEra.discoveries) return 0;
+
+    let bestProx = 0;
+    for (const disc of currentEra.discoveries) {
+      if (discoveredInEra.includes(disc.id)) continue;
+
+      let totalDist = 0;
+      let numDials = 0;
+      for (const [dialId, cond] of Object.entries(disc.conditions)) {
+        const val = dialValues[dialId];
+        if (val === undefined) continue;
+        numDials++;
+        const center = ((cond.min || 0) + (cond.max || 100)) / 2;
+        const range = ((cond.max || 100) - (cond.min || 0)) / 2;
+        if (range === 0) continue;
+        const dist = Math.abs(val - center) / range;
+        totalDist += Math.max(0, 1 - dist);
+      }
+      if (numDials > 0) {
+        bestProx = Math.max(bestProx, totalDist / numDials);
+      }
+    }
+    return bestProx;
+  }
+
+  function updateProximityFeedback() {
+    const feedbackEl = document.getElementById('proximity-feedback');
+    if (!feedbackEl) return;
+
+    const prox = computeProximity();
+
+    // 5 feedback levels
+    let text = '';
+    let level = 0;
+    if (prox >= 0.95) { text = 'Discovery imminent!'; level = 4; }
+    else if (prox >= 0.75) { text = 'Almost there!'; level = 3; }
+    else if (prox >= 0.5) { text = 'Something forming...'; level = 2; }
+    else if (prox >= 0.3) { text = 'Conditions shifting...'; level = 1; }
+
+    feedbackEl.textContent = text;
+    feedbackEl.className = 'proximity-feedback' + (level > 0 ? ' level-' + level : '');
+    feedbackEl.style.display = level > 0 ? 'block' : 'none';
+
+    // Update slider glow
+    document.querySelectorAll('.dial-slider').forEach(slider => {
+      slider.style.setProperty('--prox', prox);
+      if (prox >= 0.75) slider.classList.add('prox-high');
+      else slider.classList.remove('prox-high');
+    });
+
+    // Particle proximity
+    if (typeof Particles !== 'undefined' && Particles.setProximity) {
+      Particles.setProximity(prox);
+    }
+  }
+
+  // === TIMED CONFIDENCE BONUS (choice eras) ===
+  let choiceTimerInterval = null;
+  let choiceTimerStart = 0;
+  const CHOICE_TIME_LIMIT = 20; // seconds
+
+  function startChoiceTimer() {
+    stopChoiceTimer();
+    choiceTimerStart = Date.now();
+    const timerBar = document.getElementById('choice-timer-bar');
+    const timerInner = document.getElementById('choice-timer-inner');
+    if (timerBar) timerBar.style.display = 'block';
+
+    choiceTimerInterval = setInterval(() => {
+      const elapsed = (Date.now() - choiceTimerStart) / 1000;
+      const pct = Math.min(elapsed / CHOICE_TIME_LIMIT, 1);
+
+      if (timerInner) {
+        timerInner.style.width = (100 - pct * 100) + '%';
+        if (pct < 0.5) timerInner.style.background = 'var(--accent-cyan)';
+        else if (pct < 0.75) timerInner.style.background = 'var(--accent-gold)';
+        else timerInner.style.background = 'var(--accent-red)';
+      }
+
+      if (elapsed >= CHOICE_TIME_LIMIT) {
+        stopChoiceTimer();
+      }
+    }, 100);
+  }
+
+  function stopChoiceTimer() {
+    if (choiceTimerInterval) clearInterval(choiceTimerInterval);
+    choiceTimerInterval = null;
+  }
+
+  function getTimeBonus() {
+    const elapsed = (Date.now() - choiceTimerStart) / 1000;
+    if (elapsed <= 5) return 50;
+    if (elapsed <= 10) return 25;
+    if (elapsed <= 15) return 10;
+    return 0;
+  }
+
+  // === DISCOVERY CELEBRATION (enhanced) ===
+  function playDiscoveryCelebration(elementId) {
+    const el = ELEMENTS[elementId];
+    if (!el) return;
+
+    // Flash
+    Particles.flash(el.color || '#00e5ff');
+
+    // Extended burst
+    Particles.burst(elementId, 30);
+
+    // Score float handled by hooked addScore
+  }
+
+  // === PER-ERA STAR RATING ===
+  function calculateEraStars(eraIndex) {
+    if (!appState) return 0;
+    const era = ERAS[eraIndex];
+    if (!era) return 0;
+
+    let stars = 1; // base star for completion
+
+    // Star for finding all discoveries
+    if (era.discoveries) {
+      const allFound = era.discoveries.every(d => discoveredInEra.includes(d.id));
+      if (allFound) stars++;
+    }
+    if (era.questions) {
+      // All questions answered
+      if (choiceIndex >= era.questions.length) stars++;
+    }
+
+    // Star for speed (under 3 minutes)
+    const elapsed = (Date.now() - eraStartTime) / 1000;
+    if (elapsed < 180) stars++;
+
+    return Math.min(stars, 3);
+  }
+
+  // === ERA TRANSITIONS ===
+  function playEraTransition(fromIndex, toIndex) {
+    const overlay = document.getElementById('era-transition-overlay');
+    if (!overlay) {
+      // No overlay element, just load directly
+      loadEra(toIndex);
+      return;
+    }
+
+    const era = ERAS[toIndex];
+    overlay.innerHTML = '<div class="era-transition-title">Era ' + (toIndex + 1) + ': ' + era.name + '</div>';
+    overlay.classList.add('active');
+
+    setTimeout(() => {
+      overlay.classList.remove('active');
+      loadEra(toIndex);
+    }, 1200);
+  }
+
+  // === COMPLETION CEREMONY ===
+  function showCompletionCeremony() {
+    const totalScore = appState.storyProgress.totalScore;
+    const discoveries = appState.storyProgress.discoveries.length;
+    const totalElements = Object.keys(ELEMENTS).length;
+    const elapsed = Math.round((Date.now() - eraStartTime) / 1000 / 60);
+
+    const banner = document.getElementById('era-complete-banner');
+    if (banner) {
+      banner.style.display = 'flex';
+      banner.querySelector('.era-complete-text').innerHTML =
+        '<div class="completion-stats">' +
+        '<h2>🎉 Journey Complete!</h2>' +
+        '<p>You\'ve traversed 13.8 billion years of physics!</p>' +
+        '<div class="stat-grid">' +
+        '<div class="stat-item"><span class="stat-val">' + discoveries + '/' + totalElements + '</span><span class="stat-label">Discoveries</span></div>' +
+        '<div class="stat-item"><span class="stat-val">' + totalScore + '</span><span class="stat-label">Score</span></div>' +
+        '</div>' +
+        '<div class="completion-actions">' +
+        '<button onclick="App.switchMode(\'story\')" class="btn-continue">Replay</button>' +
+        '<button onclick="App.switchMode(\'sandbox\')" class="btn-continue">Sandbox</button>' +
+        '</div></div>';
+    }
+  }
+
+  // Override onDialChange to include proximity
+  const _origOnDialChange = onDialChange;
+  function onDialChangeWithProximity() {
+    updateParticleConfig();
+    checkDialThresholds();
+    resetHintTimer();
+    updateProximityFeedback();
+  }
+
+  // Override loadEra to update score and proximity
+  const _origLoadEra = loadEra;
+  function loadEraEnhanced(index) {
+    // Play transition if moving forward
+    if (currentEraIndex !== undefined && index > currentEraIndex && document.getElementById('era-transition-overlay')) {
+      playEraTransition(currentEraIndex, index);
+      return;
+    }
+
+    _origLoadEra(index);
+    updateScoreDisplay();
+
+    // Start choice timer for choice eras
+    if (currentEra && currentEra.type === 'choice') {
+      startChoiceTimer();
+    }
+
+    // Update proximity for dial eras
+    if (currentEra && currentEra.type === 'dials') {
+      setTimeout(updateProximityFeedback, 100);
+    }
+  }
+
+  // Override markEraComplete to save stars and check full completion
+  const _origMarkEraComplete = markEraComplete;
+  function markEraCompleteEnhanced() {
+    // Save stars
+    if (!appState.storyProgress.eraStars) appState.storyProgress.eraStars = {};
+    const stars = calculateEraStars(currentEraIndex);
+    const existing = appState.storyProgress.eraStars[currentEraIndex] || 0;
+    appState.storyProgress.eraStars[currentEraIndex] = Math.max(stars, existing);
+
+    stopChoiceTimer();
+    _origMarkEraComplete();
+
+    // Render stars in era map
+    renderEraStars();
+
+    // Check for full completion (all 8 eras)
+    const allComplete = ERAS.every((_, i) => appState.storyProgress.completedEras.includes(i));
+    if (allComplete) {
+      setTimeout(showCompletionCeremony, 1000);
+    }
+  }
+
+  function renderEraStars() {
+    const stars = appState.storyProgress.eraStars || {};
+    document.querySelectorAll('.era-map-item').forEach((item, i) => {
+      const s = stars[i] || 0;
+      const existing = item.querySelector('.era-stars');
+      if (existing) existing.remove();
+      if (s > 0) {
+        const span = document.createElement('span');
+        span.className = 'era-stars';
+        span.textContent = '★'.repeat(s);
+        item.appendChild(span);
+      }
+    });
+  }
+
+  // Override handleChoiceAnswer to include time bonus
+  const _origHandleChoiceAnswer = handleChoiceAnswer;
+  function handleChoiceAnswerWithBonus(q, selectedIndex, panel) {
+    const correct = selectedIndex === q.correct;
+    const feedbackDiv = document.getElementById('choice-feedback');
+
+    // Disable all buttons
+    panel.querySelectorAll('.choice-btn').forEach((btn, i) => {
+      btn.disabled = true;
+      if (i === q.correct) btn.classList.add('correct');
+      if (i === selectedIndex && !correct) btn.classList.add('wrong');
+    });
+
+    const timeBonus = correct ? getTimeBonus() : 0;
+    stopChoiceTimer();
+
+    if (correct) {
+      Audio.play('correct');
+      feedbackDiv.className = 'choice-feedback correct';
+      feedbackDiv.innerHTML =
+        '<div class="feedback-icon">✓</div>' +
+        '<div class="feedback-text">' + q.explanations.correct + '</div>' +
+        (timeBonus > 0 ? '<div class="time-bonus">Speed bonus: +' + timeBonus + '</div>' : '');
+      App.addScore(100 + timeBonus);
+    } else {
+      Audio.play('wrong');
+      feedbackDiv.className = 'choice-feedback wrong';
+      const wrongText = (q.explanations.wrong && q.explanations.wrong[selectedIndex])
+        || q.explanations.correct;
+      feedbackDiv.innerHTML =
+        '<div class="feedback-icon">✗</div>' +
+        '<div class="feedback-text">' + wrongText + '</div>';
+      App.addScore(25);
+    }
+
+    if (q.element) {
+      triggerDiscovery(q.element, null, false);
+    }
+
+    feedbackDiv.style.display = 'block';
+
+    const continueBtn = document.createElement('button');
+    continueBtn.className = 'btn-continue';
+    continueBtn.textContent = 'Continue →';
+    continueBtn.addEventListener('click', () => {
+      choiceIndex++;
+      renderCurrentChoice();
+      if (currentEra && currentEra.type === 'choice' && choiceIndex < (currentEra.questions || []).length) {
+        startChoiceTimer();
+      }
+    });
+    feedbackDiv.appendChild(continueBtn);
+    feedbackDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  // Patch dial change handler
+  onDialChange = onDialChangeWithProximity;
+  // Patch markEraComplete
+  markEraComplete = markEraCompleteEnhanced;
+  // Patch handleChoiceAnswer
+  handleChoiceAnswer = handleChoiceAnswerWithBonus;
+
+  // === SLIDER CONTEXT LABELS ===
+  function addSliderContextLabels() {
+    // Add physics context to temperature values
+    const tempContexts = [
+      { log: 7, label: 'Core of Sun' },
+      { log: 9, label: 'Stellar core' },
+      { log: 10, label: 'Neutron star' },
+      { log: 12, label: 'Quark-gluon plasma' },
+    ];
+    // These are rendered dynamically in dial display — just enhance formatLogValue
   }
 
   return { init, stop, loadEra };
